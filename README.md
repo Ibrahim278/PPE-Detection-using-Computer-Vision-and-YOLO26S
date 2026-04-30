@@ -1,6 +1,27 @@
+
+
+- [Overview](#overview)
+- [Demo](#demo)
+- [Dataset](#dataset)
+- [Model & Architecture](#model--architecture)
+- [Results](#results)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Training](#training)
+- [Evaluation](#evaluation)
+- [Inference on Video](#inference-on-video)
+- [Technologies Used](#technologies-used)
+
+---
+
 # PPE Detection with YOLO26S
 
-A computer vision project that fine-tunes a **YOLO26S** model to detect Personal Protective Equipment (PPE) — specifically hard hats and bare heads — in construction site images and videos.
+Workplace safety is a critical concern across industries, and construction sites in particular present a high risk of head injuries. Regulatory bodies worldwide mandate the use of hard hats on active sites, yet enforcing compliance manually is labour-intensive, inconsistent, and impractical at scale. This project addresses that challenge by building an automated **Personal Protective Equipment (PPE) detection system** powered by deep learning.
+
+The system fine-tunes a pretrained **YOLO26S** (You Only Look Once) object detection model on a dataset of 5,000 real-world construction site images, training it to distinguish between workers wearing hard hats, workers with bare heads, and general person detections in a single forward pass. Once deployed, the model can process live video feeds or recorded footage in real time, flagging non-compliant workers instantly — enabling site supervisors to act on safety violations as they happen rather than after the fact.
+
+Beyond the immediate safety application, this project demonstrates a complete, end-to-end computer vision pipeline: raw data acquisition and annotation parsing, class imbalance handling through targeted oversampling, annotation format conversion from Pascal VOC XML to YOLO-compatible labels, model fine-tuning with aggressive data augmentation, rigorous per-class evaluation, and finally video inference on real construction footage sourced from YouTube. The entire workflow runs from a single self-contained Jupyter notebook, making it straightforward to reproduce, extend, or adapt to other PPE categories such as high-visibility vests or safety goggles.
 
 ---
 
@@ -31,7 +52,7 @@ This project fine-tunes a pretrained **YOLO26S** object detection model on the [
 | `head`   | Bare head — no hard hat (unsafe)   | Red    |
 | `person` | Person body                        | Orange |
 
-The model is trained and evaluated in **Google Colab** with GPU acceleration, and inference is demonstrated on real-world construction site videos sourced from YouTube.
+The model is trained and evaluated in **Google Colab** with GPU acceleration, and inference is demonstrated on real-world construction site videos sourced from YouTube. The entire workflow is reproducible from a single notebook — no manual data wrangling required.
 
 ---
 
