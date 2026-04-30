@@ -1,0 +1,16 @@
+# Intermediate epoch checkpoints (keep only best.pt and last.pt)
+Training and Validation/ppe_yolo26s_v2/weights/epoch*.pt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store

@@ -1,0 +1,12 @@
+PPE Detection Model Evaluation Results
+==================================================
+
+mAP@50:      0.6426
+mAP@50-95:   0.4335
+Precision:   0.6254
+Recall:      0.6041
+
+ Class mAP@50 mAP@50-95 Precision Recall
+helmet 0.9700    0.6522    0.9427 0.9273
+  head 0.9495    0.6436    0.9336 0.8850
+person 0.0084    0.0046    0.0000 0.0000
