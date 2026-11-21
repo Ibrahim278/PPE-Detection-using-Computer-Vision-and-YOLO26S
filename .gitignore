@@ -24,3 +24,4 @@ ml/*.onnx
 ml/*.mlpackage/
 *.egg-info/
 .pytest_cache/
+.venv/
