@@ -14,3 +14,13 @@ venv/
 
 # macOS
 .DS_Store
+
+# ML workspace (Phase 1)
+ml/data/
+ml/runs/
+ml/outputs/
+ml/*.pt
+ml/*.onnx
+ml/*.mlpackage/
+*.egg-info/
+.pytest_cache/

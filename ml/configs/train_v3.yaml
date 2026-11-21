@@ -1,0 +1,26 @@
+# Training (ppe-train). Keys under `train` are passed straight to YOLO.train().
+model: yolo26s.pt
+data: data/ppe2/data.yaml
+project: runs/detect
+name: ppe_yolo26s_v3
+
+train:
+  epochs: 100
+  patience: 20
+  imgsz: 640
+  batch: 16
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  close_mosaic: 10
+  mixup: 0.1
+  # copy_paste removed: it needs segmentation masks and is a no-op on box-only data.
+  scale: 0.6          # stronger zoom range helps small, distant heads
+  degrees: 5.0
+  hsv_v: 0.5          # lighting variation (indoor / outdoor / shade)
+  save_period: 10
+  plots: true
+  seed: 42
+  deterministic: true
+  device: auto

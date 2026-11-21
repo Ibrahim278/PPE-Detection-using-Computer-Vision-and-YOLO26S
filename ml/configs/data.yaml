@@ -1,0 +1,11 @@
+# Dataset preparation (ppe-prepare)
+raw_dir: data/raw                 # Kaggle "hard-hat-detection" zip is extracted here
+out_dir: data/ppe2                # YOLO-format output (images/, labels/, data.yaml)
+dataset_url: https://www.kaggle.com/api/v1/datasets/download/andrewmvd/hard-hat-detection
+
+# v3 drops the unreliable "person" class: people are detected with a
+# pretrained COCO model at inference time instead.
+classes: [helmet, head]
+
+split: {train: 0.70, val: 0.20, test: 0.10}
+seed: 42

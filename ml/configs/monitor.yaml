@@ -1,0 +1,17 @@
+# Compliance monitoring (ppe-monitor)
+ppe_model: ../Training and Validation/ppe_yolo26s_v2/weights/best.pt  # switch to v3 best.pt once trained
+person_model: yolo26s.pt          # pretrained COCO model, class 0 = person; set to null to disable
+tracker: bytetrack.yaml
+imgsz: 640
+device: auto
+
+# Per-class confidence thresholds (ppe-eval writes tuned values to thresholds.json)
+conf: {helmet: 0.40, head: 0.40}
+person_conf: 0.40
+thresholds_file: null             # e.g. runs/detect/ppe_yolo26s_v3/thresholds.json
+
+# Temporal smoothing
+min_violation_s: 1.5              # bare head must persist this long before an event opens
+resolve_s: 1.0                    # helmet must persist this long before an event closes
+lost_s: 2.0                       # a track unseen this long is dropped (event closes)
+ema_alpha: 0.3                    # smoothing factor for P(head) per track

@@ -1,0 +1,38 @@
+[project]
+name = "ppe"
+version = "0.3.0"
+description = "PPE (hard hat) detection, tracking and compliance monitoring with YOLO26"
+requires-python = ">=3.10"
+dependencies = [
+    "ultralytics>=8.4.35",
+    "torch>=2.2",
+    "opencv-python-headless>=4.8",
+    "numpy>=1.24",
+    "lxml>=4.9",
+    "pyyaml>=6.0",
+    "tqdm>=4.65",
+    "lap>=0.5.12",
+]
+
+[project.optional-dependencies]
+export = ["onnx>=1.15", "onnxruntime>=1.17", "coremltools>=8.0"]
+video = ["yt-dlp>=2024.1.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+ppe-prepare = "ppe.data.prepare:main"
+ppe-train = "ppe.train:main"
+ppe-eval = "ppe.evaluate:main"
+ppe-monitor = "ppe.monitor:main"
+ppe-export = "ppe.export:main"
+ppe-bench = "ppe.benchmark:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ppe*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
