@@ -86,6 +86,38 @@ def stratified_split(keys: dict[str, int], ratios: dict[str, float], seed: int) 
     return {s: sorted(v) for s, v in out.items()}
 
 
+V2_CLASS_IDS = {"helmet": "0", "head": "1", "person": "2"}
+
+
+def notebook_v2_split(primary: dict[str, str], ratios: dict[str, float], seed: int = 42) -> dict[str, list[str]]:
+    """Reproduce the v2 notebook's split exactly, so v2 and v3 share a test set.
+
+    Mirrors the notebook: names in sorted image-filename order, grouped by the
+    most common class id in each image (``"empty"`` if none) in first-seen order,
+    each group shuffled with ``np.random.RandomState(seed)`` and cut with ``int()``.
+    """
+    import numpy as np
+
+    rng = np.random.RandomState(seed)
+    groups: dict[str, list[str]] = {}
+    for name in primary:  # caller passes names in sorted image-filename order
+        groups.setdefault(primary[name], []).append(name)
+    out = {"train": [], "val": [], "test": []}
+    for names in groups.values():
+        rng.shuffle(names)
+        n = len(names)
+        n_train, n_val = int(n * ratios["train"]), int(n * ratios["val"])
+        out["train"] += names[:n_train]
+        out["val"] += names[n_train : n_train + n_val]
+        out["test"] += names[n_train + n_val :]
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def v2_primary_class(ann) -> str:
+    ids = [V2_CLASS_IDS[o.name] for o in ann.objects if o.name in V2_CLASS_IDS]
+    return Counter(ids).most_common(1)[0][0] if ids else "empty"
+
+
 def link_or_copy(src: Path, dst: Path) -> None:
     if dst.exists():
         return
@@ -105,6 +137,7 @@ def prepare(cfg: dict) -> Path:
     ann_dir, img_dir = raw_dir / "annotations", raw_dir / "images"
 
     labels: dict[str, tuple[str, list[str]]] = {}
+    v2_primary: dict[str, str] = {}
     dropped = Counter()
     for xml in sorted(ann_dir.glob("*.xml")):
         ann = parse_voc(xml)
@@ -114,10 +147,22 @@ def prepare(cfg: dict) -> Path:
             continue
         dropped.update(o.name for o in ann.objects if o.name not in class_ids)
         labels[xml.stem] = (ann.filename, to_yolo_lines(ann, class_ids))
+        v2_primary[Path(ann.filename).stem] = v2_primary_class(ann)
 
-    head_id = class_ids.get("head")
-    strat = {k: int(any(l.startswith(f"{head_id} ") for l in v[1])) for k, v in labels.items()}
-    splits = stratified_split(strat, cfg["split"], cfg["seed"])
+    mode = cfg.get("split_mode", "v2")
+    if mode == "v2":
+        by_image = {Path(labels[k][0]).stem: k for k in labels}
+        order = sorted(labels[k][0] for k in labels)          # notebook sorted image filenames
+        primary = {Path(f).stem: v2_primary[Path(f).stem] for f in order}
+        splits = notebook_v2_split(primary, cfg["split"], cfg["seed"])
+        splits = {s: sorted(by_image[n] for n in names) for s, names in splits.items()}
+    elif mode == "head_stratified":
+        head_id = class_ids.get("head")
+        strat = {k: int(any(l.startswith(f"{head_id} ") for l in v[1])) for k, v in labels.items()}
+        splits = stratified_split(strat, cfg["split"], cfg["seed"])
+    else:
+        raise SystemExit(f"unknown split_mode: {mode}")
+    print(f"Split mode: {mode}")
 
     if out_dir.exists():
         shutil.rmtree(out_dir)

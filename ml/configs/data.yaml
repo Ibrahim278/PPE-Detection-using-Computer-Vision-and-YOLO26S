@@ -7,5 +7,10 @@ dataset_url: https://www.kaggle.com/api/v1/datasets/download/andrewmvd/hard-hat-
 # pretrained COCO model at inference time instead.
 classes: [helmet, head]
 
+# split_mode:
+#   v2               reproduce the v2 notebook split exactly (same test set -> fair v2 vs v3 comparison,
+#                    and no v2 test image ends up in v3 training)
+#   head_stratified  stratify on "image contains a bare head"
+split_mode: v2
 split: {train: 0.70, val: 0.20, test: 0.10}
 seed: 42
