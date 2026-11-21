@@ -10,7 +10,7 @@ repo root are unchanged.
 |---|---|---|
 | Classes | helmet, head, person | helmet, head; people come from a pretrained COCO model |
 | `person` | 0.008 mAP@50, 5× oversampling | removed; COCO `person` detector used at inference |
-| Split | stratified by "primary class" | stratified by "image contains a bare head" |
+| Split | stratified by "primary class" | identical to v2 by default (`split_mode: v2`, verified), so both models share one unseen test set; `head_stratified` optional |
 | Augmentation | `copy_paste=0.5` (no-op on box-only data) | removed; stronger `scale`, `hsv_v`, `cos_lr` |
 | Thresholds | single `conf=0.4` | per-class, best-F1 thresholds from the test set |
 | Output | per-frame boxes | tracked workers, smoothed status, one event per violation with snapshot |
