@@ -75,4 +75,18 @@ Tuning lives in `configs/monitor.yaml`.
 | Detector only, CPU, 640 px | 35.6 ms median (~28 FPS) |
 | Full monitor (PPE + person model + tracking), MPS, 640×360 clips | 29–37 FPS |
 
-v3 training and evaluation results go here once the dataset is downloaded and training has run.
+## Accuracy: v2 baseline on the shared test set (502 images, helmet + head)
+
+`python -m ppe.evaluate --weights <v2 best.pt> --classes 0 1 --out outputs/eval_v2`
+
+| Model | mAP@50 | mAP@50-95 | P | R | helmet mAP@50-95 | head mAP@50-95 | best-F1 conf (helmet / head) |
+|---|---|---|---|---|---|---|---|
+| v2 | 0.963 | 0.635 | 0.942 | 0.918 | 0.639 | 0.632 | 0.53 / 0.42 |
+| v3 | training… | | | | | | |
+
+v2's README reports 0.64 mAP@50 overall because the broken `person` class
+(0.008) is averaged in; on the two classes that decide compliance it was
+already strong. The bar for v3 is mAP@50-95 > 0.635 (tighter boxes) and head
+recall > 0.90 (fewer missed violations).
+
+1 epoch takes about 5 minutes on an Apple M5 (MPS, batch 16).
