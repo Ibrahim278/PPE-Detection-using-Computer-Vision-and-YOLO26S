@@ -37,6 +37,8 @@ def draw(frame: np.ndarray, result, fps: float | None = None) -> np.ndarray:
 
     s = result.summary
     bar = f"{s['workers']} workers | {s['compliant']} ok | {s['violations']} violations"
+    if s["at_risk"]:
+        bar += f" | {s['at_risk']} at risk"
     if s["unverified"]:
         bar += f" | {s['unverified']} unverified"
     if fps:

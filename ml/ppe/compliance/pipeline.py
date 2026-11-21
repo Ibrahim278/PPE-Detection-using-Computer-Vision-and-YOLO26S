@@ -70,11 +70,13 @@ class ComplianceMonitor:
     def __init__(self, ppe_model: str, person_model: str | None = "yolo26s.pt",
                  conf: dict[str, float] | None = None, person_conf: float = 0.4,
                  thresholds_file: str | None = None, tracker: str = "bytetrack.yaml",
-                 imgsz: int = 640, device: str | None = None, **smoothing):
+                 imgsz: int = 640, device: str | None = None, display_grace_s: float = 0.5,
+                 **smoothing):
         from ultralytics import YOLO
 
         self.device = get_device(device)
         self.imgsz = imgsz
+        self.display_grace_s = display_grace_s
         self.tracker_cfg = tracker
         self.ppe = YOLO(str(resolve(ppe_model)))
         names = {v: k for k, v in self.ppe.names.items()}
@@ -90,7 +92,7 @@ class ComplianceMonitor:
     @classmethod
     def from_config(cls, cfg: dict, **overrides) -> "ComplianceMonitor":
         keys = ["ppe_model", "person_model", "conf", "person_conf", "thresholds_file", "tracker",
-                "imgsz", "device", "min_violation_s", "resolve_s", "lost_s", "ema_alpha"]
+                "imgsz", "device", "display_grace_s", "min_violation_s", "resolve_s", "lost_s", "ema_alpha"]
         kw = {k: cfg[k] for k in keys if k in cfg}
         kw.update({k: v for k, v in overrides.items() if v is not None})
         return cls(**kw)
@@ -127,12 +129,16 @@ class ComplianceMonitor:
                for i, (tid, is_head, conf, box) in enumerate(heads)]
         events = self.state.update(t, obs)
 
-        seen = {h[0] for h in heads}
+        # Show workers seen in the last `display_grace_s`, and keep open violations
+        # on screen until the track is dropped, so one missed detection doesn't
+        # make a worker (or a violation) blink out of the count.
+        shown = [w for w in self.state.workers.values()
+                 if t - w.last_seen <= self.display_grace_s or w.status == "violation"]
         workers = [WorkerView(w.track_id, w.status, [round(v, 1) for v in w.box], round(w.conf, 3),
                               round(w.violation_s(t), 2),
                               [round(v, 1) for v in w.person_box] if w.person_box else None)
-                   for w in self.state.workers.values() if w.track_id in seen]
-        matched = set(match.values())
+                   for w in shown]
+        matched = set(associate_heads_to_persons([w.box for w in shown], persons).values())
         unverified = [[round(v, 1) for v in p] for i, p in enumerate(persons) if i not in matched]
 
         snaps = {}
