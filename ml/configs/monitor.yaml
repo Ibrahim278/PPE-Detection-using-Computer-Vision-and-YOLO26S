@@ -14,4 +14,5 @@ thresholds_file: null             # e.g. runs/detect/ppe_yolo26s_v3/thresholds.j
 min_violation_s: 1.5              # bare head must persist this long before an event opens
 resolve_s: 1.0                    # helmet must persist this long before an event closes
 lost_s: 2.0                       # a track unseen this long is dropped (event closes)
-ema_alpha: 0.3                    # smoothing factor for P(head) per track
+ema_alpha: 0.3
+display_grace_s: 0.5               # keep a briefly-missed worker on screen this long                    # smoothing factor for P(head) per track
