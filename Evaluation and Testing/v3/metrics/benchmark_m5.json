@@ -1,0 +1,20 @@
+[
+  {
+    "weights": "best.pt",
+    "device": "mps",
+    "imgsz": 640,
+    "median_ms": 11.3,
+    "p95_ms": 11.7,
+    "fps": 88.9,
+    "frames": 100
+  },
+  {
+    "weights": "best.pt",
+    "device": "cpu",
+    "imgsz": 640,
+    "median_ms": 34.1,
+    "p95_ms": 36.4,
+    "fps": 29.3,
+    "frames": 100
+  }
+]

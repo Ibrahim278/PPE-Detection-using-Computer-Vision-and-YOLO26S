@@ -1,0 +1,2 @@
+{"type": "violation_started", "event_id": 1, "worker_id": 9, "t": 9.0, "started_at": 7.0, "duration_s": 2.0, "reason": null, "box": [55.08241271972656, 132.8188018798828, 101.92325592041016, 180.33523559570312], "conf": 0.5445942282676697, "snapshot": "snapshots/event_0001.jpg"}
+{"type": "violation_ended", "event_id": 1, "worker_id": 9, "t": 9.966666666666667, "started_at": 7.0, "duration_s": 2.966666666666667, "reason": "stopped", "box": [47.455360412597656, 135.7305450439453, 90.51520538330078, 181.79293823242188], "conf": 0.6235633492469788}
