@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import detect, events, jobs, meta
+from app.routers import detect, events, jobs, meta, stream
 from app.settings import settings
 
 
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(detect.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
     app.include_router(events.router, prefix="/api")
+    app.include_router(stream.router, prefix="/api")
     # Annotated videos and snapshots (StaticFiles handles Range requests and blocks path traversal)
     app.mount("/media", StaticFiles(directory=settings.storage_dir), name="media")
     return app
