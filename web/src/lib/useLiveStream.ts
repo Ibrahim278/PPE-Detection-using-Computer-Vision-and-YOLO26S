@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { TrendPoint } from "../components/charts";
 import { streamUrl, type StreamEvent, type StreamFrame, type StreamMessage } from "./api";
 
 export type LiveStatus = "idle" | "starting" | "live" | "error";
@@ -18,6 +19,8 @@ export interface FeedItem {
 const MAX_FPS = 20;          // frames sent per second (the server drops anything it can't keep up with)
 const MAX_IN_FLIGHT = 2;     // keeps the server busy while the next frame is on the wire
 export const MIN_TRACKING_FPS = 10; // below this, heads move too far between frames to be tracked
+const TREND_WINDOW_S = 60;
+const TREND_SAMPLE_MS = 250;         // 4 points/s keeps the sparklines smooth without re-rendering every frame
 const MAX_WIDTH = 1280;      // downscale bigger cameras before sending
 const JPEG_QUALITY = 0.92;   // heavier compression can hide borderline bare heads
 
@@ -32,6 +35,9 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
   const [frame, setFrame] = useState<StreamFrame | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [stats, setStats] = useState({ fps: 0, latency: 0 });
+  const [trend, setTrend] = useState<{ points: TrendPoint[]; now: number }>({ points: [], now: 0 });
+  const trendStart = useRef(0);
+  const lastTrend = useRef(0);
 
   const ws = useRef<WebSocket | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
@@ -104,6 +110,7 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
     setError(null);
     setFeed([]);
     setFrame(null);
+    setTrend({ points: [], now: 0 });
     setStatus("starting");
     const v = video.current;
     if (!v) return;
@@ -139,6 +146,8 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
     ws.current = sock;
     sentCount.current = 0;
     resultTimes.current = [];
+    trendStart.current = performance.now();
+    lastTrend.current = 0;
     sock.onmessage = (ev) => {
       const msg = JSON.parse(ev.data as string) as StreamMessage;
       if (msg.type === "ready") { setStatus("live"); raf.current = requestAnimationFrame(loop); return; }
@@ -159,6 +168,12 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
       setStats({ fps: times.length / 2, latency: sent ? Math.round(now - sent) : 0 });
       setFrame(msg);
       applyEvents(msg.events);
+      if (now - lastTrend.current >= TREND_SAMPLE_MS) {
+        lastTrend.current = now;
+        const t = (now - trendStart.current) / 1000;
+        const point = { t, workers: msg.summary.workers, violations: msg.summary.violations };
+        setTrend((prev) => ({ now: t, points: [...prev.points.filter((p) => p.t >= t - TREND_WINDOW_S), point] }));
+      }
     };
     sock.onerror = () => { setError("Lost connection to the API server."); };
     sock.onclose = (ev) => {
@@ -172,5 +187,5 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
 
   useEffect(() => cleanup, [cleanup]);
 
-  return { status, error, frame, feed, stats, start, stop };
+  return { status, error, frame, feed, stats, trend, start, stop };
 }

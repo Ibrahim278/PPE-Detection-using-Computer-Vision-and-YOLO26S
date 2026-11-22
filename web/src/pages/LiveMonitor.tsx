@@ -1,6 +1,7 @@
 import { Camera, CircleStop, FileVideo, Play, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { Sparkline } from "../components/charts";
 import { useOverlay } from "../components/MediaOverlay";
 import { ComplianceCounter, EmptyState, ErrorBox, PageHeader, Spinner } from "../components/ui";
 import { mediaUrl } from "../lib/api";
@@ -66,6 +67,12 @@ export default function LiveMonitor() {
       </div>
 
       <div className="mb-4"><ComplianceCounter summary={f?.summary ?? null} compact /></div>
+      {(running || live.trend.points.length > 0) && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <Sparkline data={live.trend.points} now={live.trend.now} dataKey="workers" label="Workers" color="var(--color-chart)" />
+          <Sparkline data={live.trend.points} now={live.trend.now} dataKey="violations" label="Violations" color="var(--color-bad)" />
+        </div>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
         <div className="card relative aspect-video overflow-hidden bg-black">
