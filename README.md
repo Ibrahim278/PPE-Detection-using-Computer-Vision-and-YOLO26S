@@ -15,6 +15,7 @@ only when a bare head persists, logs each incident with a snapshot, and presents
 - [From course project to SiteGuard](#from-course-project-to-siteguard)
 - [Features](#features)
 - [How it works](#how-it-works)
+- [Architecture](#architecture)
 - [Model and results](#model-and-results)
 - [Repository structure](#repository-structure)
 - [Run locally with Docker](#run-locally-with-docker)
@@ -57,11 +58,64 @@ is in `Project Report.docx` and `Project Presnetation.pptx`, and the original ou
 3. **Confirm:** a violation opens only after about 1.5 s of a bare head on the same worker, and closes after 1 s with a helmet or 2 s out of view.
 4. **Alert and log:** each incident is stored with a snapshot, start time and duration.
 
+## Architecture
+
+### System
+
+```mermaid
+flowchart LR
+    user(["User<br/>browser · webcam · video files"])
+
+    subgraph vercel["Vercel"]
+        web["Web app<br/>React + Tailwind<br/>Landing · Live Monitor · Analyze<br/>Violations · Model"]
+    end
+
+    subgraph render["Render (Docker, 1 CPU)"]
+        api["FastAPI<br/>REST /api/*<br/>WebSocket /api/stream<br/>/media files"]
+        jobs["Job worker<br/>one video at a time"]
+        monitor["Compliance monitor<br/>YOLO26s helmet/head<br/>+ COCO person model<br/>+ ByteTrack + smoothing"]
+        store[("/data disk<br/>SQLite events · annotated MP4s<br/>snapshots")]
+    end
+
+    sources["Video sources<br/>uploads · direct links<br/>YouTube / Vimeo (yt-dlp)"]
+
+    user --> web
+    web -- "images, video jobs, events (HTTPS)" --> api
+    web <-- "live frames / detections (WebSocket)" --> api
+    api --> jobs
+    sources --> jobs
+    api --> monitor
+    jobs --> monitor
+    monitor --> store
+    api --> store
 ```
-Browser (React, Vercel) ──HTTPS / WebSocket──► API (FastAPI on Render)
-                                                 ├─ YOLO26s + COCO person model + ByteTrack
-                                                 ├─ background video jobs (ffmpeg, yt-dlp)
-                                                 └─ SQLite + annotated videos + snapshots on a disk
+
+### Per-frame pipeline
+
+```mermaid
+flowchart LR
+    frame["Video frame"] --> ppe["YOLO26s<br/>helmet / head boxes"]
+    frame --> person["COCO detector<br/>person boxes"]
+    ppe --> track["ByteTrack<br/>one ID per worker"]
+    track --> assoc["Match heads<br/>to people"]
+    person --> assoc
+    assoc --> smooth{"Bare head for<br/>more than 1.5 s?"}
+    smooth -- "yes" --> open["Open violation<br/>+ snapshot"]
+    smooth -- "no" --> ok["Compliant /<br/>at risk"]
+    open --> close["Close after 1 s with helmet<br/>or 2 s out of view"]
+    close --> event[("Event: start,<br/>duration, snapshot")]
+```
+
+### Build and deploy
+
+```mermaid
+flowchart LR
+    push["git push<br/>to main"] --> ci["GitHub Actions CI<br/>tests · web build + audit<br/>Docker build + smoke test"]
+    ci -- "API image" --> ghcr[("GitHub Container Registry<br/>siteguard-api:latest / :sha")]
+    ci -. "deploy hook (optional)" .-> renderapi["Render<br/>API service"]
+    ghcr --> renderapi
+    push -- "auto deploy" --> vercelweb["Vercel<br/>web app (web/)"]
+    vercelweb -- "VITE_API_URL" --> renderapi
 ```
 
 ## Model and results
