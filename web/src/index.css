@@ -18,6 +18,15 @@
   --color-risk: #f59e0b;
   --color-bad: #ef4444;
   --color-unverified: #94a3b8;
+
+  /* Charts (validated with the dataviz palette checker against --color-panel).
+     Single-series line/area color, and a 5-step sequential ramp for heatmaps (low -> high). */
+  --color-chart: #f59e0b;
+  --color-heat-1: #991b1b;
+  --color-heat-2: #c42121;
+  --color-heat-3: #e23b3b;
+  --color-heat-4: #f26b6b;
+  --color-heat-5: #fca5a5;
 }
 
 @media (prefers-color-scheme: light) {
@@ -32,6 +41,12 @@
     --color-risk: #d97706;
     --color-bad: #dc2626;
     --color-unverified: #64748b;
+    --color-chart: #b45309;     /* amber-700: >= 3:1 on white, unlike the brand amber */
+    --color-heat-1: #f87171;
+    --color-heat-2: #e53e3e;
+    --color-heat-3: #c81e1e;
+    --color-heat-4: #9b1c1c;
+    --color-heat-5: #6b1414;
   }
 }
 

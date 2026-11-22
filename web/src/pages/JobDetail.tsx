@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Download, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { useMemo, useRef } from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, Legend, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link, useNavigate, useParams } from "react-router";
 
+import {
+  averageCompliance, ChartCard, ComplianceChart, tooltipItemStyle, tooltipLabelStyle, tooltipStyle, ViolationTimeline,
+} from "../components/charts";
 import { EventList } from "../components/EventList";
 import { EmptyState, ErrorBox, PageHeader, ProgressBar, Spinner, StatCard } from "../components/ui";
 import { ACTIVE_STATUSES, api, mediaUrl } from "../lib/api";
@@ -40,6 +43,7 @@ export default function JobDetail() {
     v.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const compliance = j?.summary?.compliance_rate ?? (timeline.data ? averageCompliance(timeline.data) : null);
   const chartData = useMemo(() => timeline.data?.map((p) => ({ ...p, ok: p.compliant, bad: p.violations })) ?? [], [timeline.data]);
 
   if (job.isLoading) return <Spinner label="Loading…" />;
@@ -88,10 +92,13 @@ export default function JobDetail() {
       {finished && j.summary && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Compliance" value={compliance == null ? "–" : `${Math.round(compliance * 100)}%`}
+              tone={compliance == null ? undefined : compliance >= 0.995 ? "ok" : compliance >= 0.8 ? "risk" : "bad"}
+              hint="of visible heads wore a helmet" />
             <StatCard label="Violations" value={j.summary.violations} tone={j.summary.violations ? "bad" : "ok"} />
             <StatCard label="Peak workers" value={j.summary.peak_workers_in_frame} hint="in one frame" />
-            <StatCard label="Length" value={clock(j.summary.video_seconds)} hint={`${j.summary.frames_processed} frames`} />
-            <StatCard label="Speed" value={j.summary.pipeline_fps ? `${j.summary.pipeline_fps} fps` : "–"} hint="detection + tracking" />
+            <StatCard label="Length" value={clock(j.summary.video_seconds)}
+              hint={`${j.summary.frames_processed} frames${j.summary.pipeline_fps ? ` · ${j.summary.pipeline_fps} fps` : ""}`} />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -107,9 +114,15 @@ export default function JobDetail() {
                   </div>
                 </div>
               )}
+              <ChartCard title="Compliance over time"
+                subtitle="Share of visible workers wearing a helmet, frame by frame. Gaps mean no heads were visible. Click to jump the video there.">
+                {timeline.isLoading ? <Spinner /> : timeline.data?.length
+                  ? <ComplianceChart points={timeline.data} offset={offset} onSeek={seek} />
+                  : <p className="text-sm text-muted">No timeline data.</p>}
+              </ChartCard>
               <div className="card p-4">
                 <h2 className="mb-1 text-sm font-semibold">Workers over time</h2>
-                <p className="mb-3 text-xs text-muted">Red bands mark violations; click one in the list to jump there.</p>
+                <p className="mb-3 text-xs text-muted">Shaded bands mark violations; click one in the list to jump there.</p>
                 {timeline.isLoading ? <Spinner /> : chartData.length ? (
                   <div className="h-56" role="img" aria-label="Chart of compliant workers and violations over time">
                     <ResponsiveContainer>
@@ -119,19 +132,26 @@ export default function JobDetail() {
                         <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(t) => clock(t + offset)}
                           stroke="var(--color-muted)" fontSize={11} />
                         <YAxis allowDecimals={false} stroke="var(--color-muted)" fontSize={11} />
-                        <Tooltip contentStyle={{ background: "var(--color-panel)", border: "1px solid var(--color-line)", borderRadius: 8 }}
-                          labelFormatter={(t) => clock(Number(t) + offset)} />
+                        <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} labelFormatter={(t) => clock(Number(t) + offset)} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
                         {j.events?.map((e) => (
                           <ReferenceArea key={e.id} x1={e.started_at_s} x2={e.ended_at_s ?? e.started_at_s + 0.5}
                             fill="var(--color-bad)" fillOpacity={0.15} />
                         ))}
                         <Area type="stepAfter" dataKey="ok" name="Compliant" stroke="var(--color-ok)" fill="var(--color-ok)" fillOpacity={0.15} isAnimationActive={false} />
-                        <Area type="stepAfter" dataKey="bad" name="Violations" stroke="var(--color-bad)" fill="var(--color-bad)" fillOpacity={0.3} isAnimationActive={false} />
+                        {/* dashed stroke: a second cue besides color (green vs red is hard for red-green color blindness) */}
+                        <Area type="stepAfter" dataKey="bad" name="Violations" stroke="var(--color-bad)" strokeDasharray="5 3" fill="var(--color-bad)" fillOpacity={0.3} isAnimationActive={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 ) : <p className="text-sm text-muted">No timeline data.</p>}
               </div>
+              {!!j.events?.length && (
+                <ChartCard title="Violations by worker"
+                  subtitle="When each worker was without a helmet, and for how long. Click a bar to jump the video there.">
+                  <ViolationTimeline events={j.events} videoSeconds={j.summary.video_seconds} offset={offset} onSeek={seek} />
+                </ChartCard>
+              )}
             </div>
             <div className="card h-fit">
               <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">Violations ({j.events?.length ?? 0})</h2>

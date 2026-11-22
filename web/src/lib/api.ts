@@ -76,6 +76,7 @@ export interface Job {
     violations: number;
     peak_workers_in_frame: number;
     peak_violations_in_frame: number;
+    compliance_rate?: number | null;   // share of visible heads wearing a helmet (missing on older jobs)
     width: number;
     height: number;
     fps: number;
