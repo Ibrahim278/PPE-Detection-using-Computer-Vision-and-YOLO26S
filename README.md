@@ -1,325 +1,192 @@
+# SiteGuard: PPE Detection with YOLO26
 
+[![CI](https://github.com/Ibrahim278/PPE-Detection-using-Computer-Vision-and-YOLO26S/actions/workflows/ci.yml/badge.svg)](https://github.com/Ibrahim278/PPE-Detection-using-Computer-Vision-and-YOLO26S/actions/workflows/ci.yml)
+**Live demo:** [siteguardx.vercel.app](https://siteguardx.vercel.app)
 
-- [Overview](#overview)
-- [Demo](#demo)
-- [Dataset](#dataset)
-- [Model & Architecture](#model--architecture)
-- [Results](#results)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Configuration](#configuration)
-- [Training](#training)
-- [Evaluation](#evaluation)
-- [Inference on Video](#inference-on-video)
-- [Technologies Used](#technologies-used)
+This started as a course project for **CST8508 Machine Vision at Algonquin College**: fine-tune a YOLO model to
+tell construction workers wearing hard hats from workers with bare heads. It has since grown into **SiteGuard**, an
+end-to-end hard-hat compliance system. It tracks every worker in a video or camera feed, confirms a violation
+only when a bare head persists, logs each incident with a snapshot, and presents everything in a web dashboard.
 
----
+<p align="center"><img src="web/public/landing/hero.jpg" alt="SiteGuard detecting seven workers with hard hats and one worker in a cap without one" width="760"></p>
 
-# PPE Detection with YOLO26S
+## Contents
 
-Workplace safety is a critical concern across industries, and construction sites in particular present a high risk of head injuries. Regulatory bodies worldwide mandate the use of hard hats on active sites, yet enforcing compliance manually is labour-intensive, inconsistent, and impractical at scale. This project addresses that challenge by building an automated **Personal Protective Equipment (PPE) detection system** powered by deep learning.
-
-The system fine-tunes a pretrained **YOLO26S** (You Only Look Once) object detection model on a dataset of 5,000 real-world construction site images, training it to distinguish between workers wearing hard hats, workers with bare heads, and general person detections in a single forward pass. Once deployed, the model can process live video feeds or recorded footage in real time, flagging non-compliant workers instantly — enabling site supervisors to act on safety violations as they happen rather than after the fact.
-
-Beyond the immediate safety application, this project demonstrates a complete, end-to-end computer vision pipeline: raw data acquisition and annotation parsing, class imbalance handling through targeted oversampling, annotation format conversion from Pascal VOC XML to YOLO-compatible labels, model fine-tuning with aggressive data augmentation, rigorous per-class evaluation, and finally video inference on real construction footage sourced from YouTube. The entire workflow runs from a single self-contained Jupyter notebook, making it straightforward to reproduce, extend, or adapt to other PPE categories such as high-visibility vests or safety goggles.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Demo](#demo)
-- [Dataset](#dataset)
-- [Model & Architecture](#model--architecture)
-- [Results](#results)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Configuration](#configuration)
-- [Training](#training)
-- [Evaluation](#evaluation)
-- [Inference on Video](#inference-on-video)
-- [Technologies Used](#technologies-used)
+- [From course project to SiteGuard](#from-course-project-to-siteguard)
+- [Features](#features)
+- [How it works](#how-it-works)
+- [Model and results](#model-and-results)
+- [Repository structure](#repository-structure)
+- [Run locally with Docker](#run-locally-with-docker)
+- [Development setup](#development-setup)
+- [Deployment](#deployment)
+- [Training and evaluation](#training-and-evaluation)
+- [Limitations](#limitations)
+- [Acknowledgements](#acknowledgements)
 
 ---
 
-## Overview
+## From course project to SiteGuard
 
-This project fine-tunes a pretrained **YOLO26S** object detection model on the [Safety Helmet Detection dataset](https://www.kaggle.com/datasets/andrewmvd/hard-hat-detection) from Kaggle to identify:
+**The course project (v2)** is a single Google Colab notebook, [`PPE_Detection_Project_Code.ipynb`](PPE_Detection_Project_Code.ipynb).
+It parses the Kaggle annotations, converts them to YOLO format, fine-tunes YOLO26s on three classes (`helmet`,
+`head`, `person`), evaluates on a held-out test set, and runs the model on construction videos. The course write-up
+is in `Project Report.docx` and `Project Presnetation.pptx`, and the original outputs are kept in
+`Training and Validation/ppe_yolo26s_v2/`, `Evaluation and Testing/` and `Project Demo Videos/`.
 
-| Class    | Description                        | Color  |
-|----------|------------------------------------|--------|
-| `helmet` | Worker wearing a hard hat (safe)   | Green  |
-| `head`   | Bare head — no hard hat (unsafe)   | Red    |
-| `person` | Person body                        | Orange |
+**What was built on top**, in four phases:
 
-The model is trained and evaluated in **Google Colab** with GPU acceleration, and inference is demonstrated on real-world construction site videos sourced from YouTube. The entire workflow is reproducible from a single notebook — no manual data wrangling required.
+| Phase | What it added | Where |
+|---|---|---|
+| 1. Model and tracking | 2-class model (v3), retrained on the same split; people come from a pretrained COCO detector; ByteTrack tracking, temporal smoothing and one event per violation; tuned per-class thresholds; ONNX export | [`ml/`](ml/README.md) |
+| 2. Backend API | FastAPI service: image detection, video jobs from uploads or links, live WebSocket stream, events stored in SQLite | [`api/`](api/README.md) |
+| 3. Web app | React + Tailwind dashboard: landing page, Live Monitor, Analyze, Violations, Model, with charts | [`web/`](web/README.md) |
+| 4. Shipping | Docker images and Compose stack, GitHub Actions CI, hosting on Vercel (frontend) and Render (API) | [`DEPLOY.md`](DEPLOY.md) |
 
----
+## Features
 
-## Demo
+- **Live Monitor:** use a webcam, or play a recording as if it were a camera. Boxes are drawn over the video, alongside a live compliance count, trend sparklines and a violation feed with snapshots.
+- **Analyze:** check a photo instantly, or upload a video (MP4, MOV, AVI, MKV, WebM) or paste a YouTube, Vimeo or direct link, optionally just a section. You get an annotated MP4, compliance over time, a per-worker violation timeline, and each incident with a snapshot.
+- **Violations dashboard:** every incident from videos and live sessions, with filters, an incidents-over-time chart, a weekday × hour heatmap and CSV export.
+- **Model page:** test-set metrics, v2 vs v3, per-class results, thresholds, and how alerts are decided.
 
-Sample detection outputs are available in `Evaluation and Testing/sample_detections/`. Project demo videos (`.avi`) are in `Project Demo Videos/`.
+## How it works
 
----
+1. **Detect:** YOLO26s finds every head and whether it wears a hard hat. A COCO model finds people, so workers whose head isn't visible still count.
+2. **Track:** ByteTrack keeps a stable ID per worker across frames.
+3. **Confirm:** a violation opens only after about 1.5 s of a bare head on the same worker, and closes after 1 s with a helmet or 2 s out of view.
+4. **Alert and log:** each incident is stored with a snapshot, start time and duration.
 
-## Dataset
-
-- **Source:** [Kaggle — Safety Helmet Detection](https://www.kaggle.com/datasets/andrewmvd/hard-hat-detection)
-- **Format:** Pascal VOC XML annotations
-- **Size:** 5,000 images / 5,000 annotation files
-- **Image dimensions:** ~416×416 px
-
-### Class Distribution
-
-| Class    | Instances | Percentage |
-|----------|-----------|------------|
-| `helmet` | 18,966    | 74.4%      |
-| `head`   | 5,785     | 22.7%      |
-| `person` | 751       | 2.9%       |
-| **Total**| **25,502**|            |
-
-> **Note:** The `person` class is heavily underrepresented. Oversampling (`PERSON_OVERSAMPLE = 5`) is applied during preprocessing to address this imbalance.
-
-The dataset is split into **train / val / test** sets and converted from Pascal VOC XML to **YOLO label format** (normalized bounding box coordinates).
-
----
-
-## Model & Architecture
-
-- **Base model:** `yolo26s.pt` (pretrained YOLO26S)
-- **Task:** Object detection
-- **Input size:** 640×640
-- **Framework:** [Ultralytics](https://github.com/ultralytics/ultralytics) (v8.4.35)
-
----
-
-## Results
-
-Evaluated on the held-out **test set** with a confidence threshold of `0.4`:
-
-| Metric        | Overall | `helmet` | `head`  | `person` |
-|---------------|---------|----------|---------|----------|
-| **mAP@50**    | 0.6426  | 0.9700   | 0.9495  | 0.0084   |
-| **mAP@50-95** | 0.4335  | 0.6522   | 0.6436  | 0.0046   |
-| **Precision** | 0.6254  | 0.9427   | 0.9336  | 0.0000   |
-| **Recall**    | 0.6041  | 0.9273   | 0.8850  | 0.0000   |
-
-> The `helmet` and `head` classes achieve strong performance (mAP@50 > 0.94). The `person` class performs poorly due to extreme class imbalance in the dataset.
-
-Training curves, confusion matrices, and PR curves are saved in `Training and Validation/ppe_yolo26s_v2/`.
-
----
-
-## v3: Compliance Monitoring (Phase 1)
-
-The notebook pipeline is now a reusable Python package in [`ml/`](ml/README.md), with:
-
-- a **2-class model (helmet / head)**, retrained on the same split as v2. People are detected by a pretrained COCO model instead of the unreliable `person` class;
-- **per-worker tracking** (ByteTrack), temporal smoothing, and **one event per violation** with a snapshot;
-- per-class tuned thresholds, browser-playable H.264 output, ONNX export, and benchmarks.
-
-Same test set, helmet + head: v2 0.963 / 0.635 vs **v3 0.963 / 0.639** (mAP@50 / mAP@50-95), with higher recall (0.918 → 0.926).
-Weights: `Training and Validation/ppe_yolo26s_v3/weights/` · Results and demo videos: `Evaluation and Testing/v3/`.
-
-```bash
-cd ml && pip install -e . && python -m ppe.monitor --source your_video.mp4 --out outputs/run
+```
+Browser (React, Vercel) ──HTTPS / WebSocket──► API (FastAPI on Render)
+                                                 ├─ YOLO26s + COCO person model + ByteTrack
+                                                 ├─ background video jobs (ffmpeg, yt-dlp)
+                                                 └─ SQLite + annotated videos + snapshots on a disk
 ```
 
----
+## Model and results
 
-## Backend API (Phase 2)
+**Dataset:** [Safety Helmet Detection](https://www.kaggle.com/datasets/andrewmvd/hard-hat-detection) on Kaggle. It has 5,000 images (about 416×416) with Pascal VOC annotations: 18,966 `helmet`, 5,785 `head` and 751 `person` boxes. Both versions use the same 70/20/10 train/val/test split (3,499 / 999 / 502 images).
 
-[`api/`](api/README.md) is a FastAPI service around the v3 model: single-image detection, video jobs from
-uploads or URLs (direct links, YouTube/Vimeo sections), and live webcam monitoring over WebSocket. Violation
-events with snapshots are stored in SQLite.
+**v2, the course model (3 classes, test set, conf 0.4):** strong on helmets and heads, but the `person` class failed because it had too few, inconsistent labels, which pulled the overall score down.
 
-```bash
-pip install -e ml -e "api[platforms]" && cd api && uvicorn app.main:app --port 8000   # docs at /docs
+| | Overall | `helmet` | `head` | `person` |
+|---|---|---|---|---|
+| mAP@50 | 0.643 | 0.970 | 0.950 | 0.008 |
+| mAP@50-95 | 0.434 | 0.652 | 0.644 | 0.005 |
+
+**v3, the current model (2 classes) vs v2, on the same 502 test images (helmet + head):**
+
+| Model | mAP@50 | mAP@50-95 | Precision | Recall |
+|---|---|---|---|---|
+| v2 | 0.963 | 0.635 | 0.942 | 0.918 |
+| **v3** | **0.963** | **0.639** | 0.932 | **0.926** |
+
+Accuracy is effectively a tie. v3's gains are in the system around the model: no broken `person` class, tracking,
+confirmed alerts and tuned thresholds (helmet 0.39, head 0.45). v3 was trained for 100 epochs (best epoch 86) at
+640 px on an Apple M5. The weights are in `Training and Validation/ppe_yolo26s_v3/weights/` (PyTorch and ONNX, via
+Git LFS), and the metrics and demo outputs are in `Evaluation and Testing/v3/`.
+
+**Speed:**
+- Apple M5 GPU (MPS): 11 ms per frame, detector only.
+- CPU in Docker: about 9 FPS for live tracking with both models.
+- Hosted demo on 1 CPU: about 1 s per image.
+
+## Repository structure
+
+```
+├── ml/                          # Python package: data prep, training, evaluation, tracking, export (Phase 1)
+├── api/                         # FastAPI backend + Dockerfile (Phase 2)
+├── web/                         # React + Tailwind frontend + Dockerfile / nginx (Phase 3)
+├── docker-compose.yml           # full stack locally
+├── render.yaml                  # Render blueprint for the API
+├── DEPLOY.md                    # detailed hosting guide
+├── .github/workflows/ci.yml     # tests, builds, image publishing
+├── PPE_Detection_Project_Code.ipynb   # original course notebook (v2)
+├── Config Files/                # v2 training / validation configs
+├── Training and Validation/     # v2 and v3 runs: weights, curves, configs
+├── Evaluation and Testing/      # v2 metrics and samples; v3/ metrics, thresholds, demo videos
+├── Project Demo Videos/         # v2 annotated demo clips
+└── Project Report.docx, Project Presnetation.pptx   # course deliverables
 ```
 
----
+## Run locally with Docker
 
-## Web App (Phase 3)
-
-[`web/`](web/README.md) is a React + Tailwind dashboard for the API: **Live Monitor** (webcam or a
-video file as the camera, with boxes, a live compliance counter and a violation feed), **Analyze**
-(images, video uploads and links, with job progress, an annotated player and a violations timeline),
-a **Violations** dashboard with CSV export, and a **Model** page comparing v2 and v3.
+Requires Docker and Git LFS.
 
 ```bash
-cd api && uvicorn app.main:app --port 8000     # terminal 1
-cd web && npm install && npm run dev           # terminal 2, then open http://localhost:5173
-```
-
----
-
-## Run Everything with Docker (Phase 4)
-
-```bash
+git clone https://github.com/Ibrahim278/PPE-Detection-using-Computer-Vision-and-YOLO26S
+cd PPE-Detection-using-Computer-Vision-and-YOLO26S
 git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"
-docker compose up --build        # then open http://localhost:8080
+docker compose up --build
 ```
 
-Server requirements, HTTPS, configuration and security notes are in [DEPLOY.md](DEPLOY.md).
-CI (`.github/workflows/ci.yml`) runs the tests, builds the web app and Docker images, and smoke-tests the stack on every push.
+Open <http://localhost:8080>. nginx serves the web app and proxies `/api` and `/media` to the API, which isn't exposed
+directly. Data (database, videos, snapshots) persists in the `ppe-data` volume. The image runs on CPU. For real-time
+Live Monitor, run the development setup on a machine with a GPU.
 
----
+## Development setup
 
-## Project Structure
-
-```
-PPE Detection with YOLO26S/
-│
-├── Config Files/
-│   ├── training_config.json       # Training hyperparameters
-│   └── val_config.json            # Validation/test configuration
-│
-├── Evaluation and Testing/
-│   ├── metrics/
-│   │   ├── class_distribution.png
-│   │   ├── confusion_matrix.png
-│   │   ├── confusion_matrix_normalized.png
-│   │   └── test_results.txt       # mAP, precision, recall per class
-│   └── sample_detections/
-│       ├── failures/              # Hard failure cases
-│       └── det_*.png              # Successful detection examples
-│
-├── Training and Validation/
-│   ├── ppe_yolo26s_v2/
-│   │   ├── weights/
-│   │   │   ├── best.pt            # Best checkpoint
-│   │   │   └── last.pt            # Final checkpoint
-│   │   ├── results.csv            # Per-epoch metrics
-│   │   ├── results.png
-│   │   ├── args.yaml              # Full training config (auto-generated)
-│   │   └── *.png                  # Training curves & batch previews
-│   └── val/                       # Validation run outputs
-│
-├── Project Demo Videos/
-│   └── clip_v*/                   # Annotated video clips (.avi)
-│
-├── PPE_Detection_Project_Code.ipynb   # Main notebook (Colab)
-├── Project Report.docx
-├── Project Presentation.pptx
-└── README.md
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.8+
-- A GPU (CUDA or Apple MPS) is strongly recommended
-- A Kaggle account (for dataset download)
-
-### Installation
+**Backend** (Python 3.10+, ffmpeg):
 
 ```bash
-pip install ultralytics opencv-python-headless matplotlib seaborn pandas numpy scikit-learn lxml pyyaml tqdm
+python -m venv .venv && source .venv/bin/activate
+pip install -e ml -e "api[platforms,dev]"
+git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"
+cd api && uvicorn app.main:app --reload --port 8000      # docs at http://localhost:8000/docs
 ```
 
-### Running in Google Colab (Recommended)
+It uses Apple MPS or CUDA automatically when available. Endpoints, the WebSocket protocol and settings are in [`api/README.md`](api/README.md).
 
-1. Upload `PPE_Detection_Project_Code.ipynb` to Google Colab.
-2. Mount Google Drive when prompted.
-3. Run all cells sequentially — the notebook handles dataset download, preprocessing, training, evaluation, and inference automatically.
+**Frontend** (Node 20):
 
-### Running Locally
-
-1. Clone or download this repository.
-2. Install dependencies (see above).
-3. Open `PPE_Detection_Project_Code.ipynb` in Jupyter.
-4. Set `PROJECT_ROOT` to your local project directory.
-5. Run all cells.
-
----
-
-## Configuration
-
-### Training (`Config Files/training_config.json`)
-
-| Parameter        | Value          | Description                          |
-|------------------|----------------|--------------------------------------|
-| `model`          | `yolo26s.pt`   | Pretrained base model                |
-| `epochs`         | 100            | Max training epochs                  |
-| `batch`          | 16             | Batch size                           |
-| `imgsz`          | 640            | Input image size                     |
-| `patience`       | 20             | Early stopping patience              |
-| `lr0`            | 0.01           | Initial learning rate                |
-| `lrf`            | 0.01           | Final learning rate factor           |
-| `copy_paste`     | 0.5            | Copy-paste augmentation probability  |
-| `mixup`          | 0.15           | Mixup augmentation probability       |
-| `optimizer`      | `auto`         | Optimizer selection                  |
-| `device`         | `cuda`         | Compute device                       |
-
-### Evaluation (`Config Files/val_config.json`)
-
-| Parameter        | Value   | Description                    |
-|------------------|---------|--------------------------------|
-| `split`          | `test`  | Dataset split to evaluate on   |
-| `conf_threshold` | 0.4     | Minimum detection confidence   |
-| `device`         | `cuda`  | Compute device                 |
-
----
-
-## Training
-
-The notebook performs the following steps:
-
-1. **Environment setup** — mounts Google Drive, installs packages, creates directory structure.
-2. **Dataset download** — fetches the ~1.3 GB Kaggle dataset (skipped if already present).
-3. **Dataset exploration** — parses Pascal VOC XML annotations, plots class distribution, visualises sample images.
-4. **Preprocessing** — converts annotations to YOLO format, splits data (train/val/test), applies person-class oversampling, generates `data.yaml`.
-5. **Training** — fine-tunes YOLO26S with the configuration above; checkpoints saved every 10 epochs.
-6. **Evaluation** — runs the best checkpoint on the test set and reports per-class metrics.
-7. **Inference** — downloads YouTube video clips and runs detection, saving annotated `.avi` files.
-
----
-
-## Evaluation
-
-After training, the best model weights are located at:
-
-```
-Training and Validation/ppe_yolo26s_v2/weights/best.pt
+```bash
+cd web && npm install && npm run dev                     # http://localhost:5173, proxies /api to :8000
 ```
 
-To re-run evaluation:
+**Tests:** `pytest ml/tests api/tests`. CI also type-checks and builds the web app, audits npm packages, builds both
+Docker images and smoke-tests the stack on every push.
 
-```python
-from ultralytics import YOLO
+## Deployment
 
-model = YOLO("Training and Validation/ppe_yolo26s_v2/weights/best.pt")
-results = model.val(data="path/to/data.yaml", split="test", conf=0.4)
+The live demo runs as two services. Step-by-step instructions are in [`DEPLOY.md`](DEPLOY.md).
+
+**Frontend on Vercel**
+- Import the repository and set **Root Directory** to `web`. `web/vercel.json` sets the build, SPA routing and headers.
+- Set `VITE_API_URL` to the API's URL, then redeploy. The value is built into the site.
+- Leave Git LFS off in Vercel; the frontend doesn't need the model files.
+
+**Backend on Render**
+- CI builds the API image with the model weights and publishes it to `ghcr.io/ibrahim278/siteguard-api` on every push to `main`.
+- *New → Blueprint* reads [`render.yaml`](render.yaml): Standard plan (1 CPU, 2 GB RAM), a 5 GB disk at `/data`, and a health check.
+- Set `PPE_CORS_ORIGINS` to the Vercel URL.
+- Optionally, add the service's Deploy Hook as the GitHub secret `RENDER_DEPLOY_HOOK_URL`, so each green CI run deploys automatically.
+
+**Any other Docker host** works as well: build `api/Dockerfile` from the repository root, mount `/data`, and
+serve the frontend from `web/Dockerfile` or any static host. Settings are listed in [`api/README.md`](api/README.md#configuration-environment-variables).
+
+## Training and evaluation
+
+The original workflow is the Colab notebook. The [`ml/`](ml/README.md) package makes it reproducible from the command line:
+
+```bash
+cd ml
+python -m ppe.data.prepare                                   # download (Kaggle CLI) and build the 2-class dataset
+python -m ppe.train --config configs/train_v3.yaml           # train (resumes from last.pt)
+python -m ppe.evaluate --weights <best.pt> --out outputs/eval    # metrics + tuned thresholds
+python -m ppe.monitor --source video.mp4 --out outputs/run       # annotated MP4 + violation events
 ```
 
----
+## Limitations
 
-## Inference on Video
+- **Hard hats only:** caps count as violations, but improvised head coverings (such as paper bags) can be mistaken for helmets. Vests, glasses and other PPE aren't checked.
+- **Frame rate:** live tracking needs about 10 FPS or more. The hosted CPU demo is best used for image and video analysis.
+- **No login yet:** keep a deployment private, or add authentication, before sharing it widely.
+- **A demonstration, not a certified safety system:** check privacy rules before recording real sites.
 
-The notebook downloads short clips from YouTube construction site videos and runs the trained model on each frame. Annotated output videos are saved to `Project Demo Videos/`.
+## Acknowledgements
 
-To run inference on a custom video:
-
-```python
-from ultralytics import YOLO
-
-model = YOLO("Training and Validation/ppe_yolo26s_v2/weights/best.pt")
-model.predict(source="your_video.mp4", conf=0.4, save=True)
-```
-
----
-
-## Technologies Used
-
-| Tool / Library     | Purpose                              |
-|--------------------|--------------------------------------|
-| Ultralytics YOLO   | Model training, evaluation, inference|
-| PyTorch            | Deep learning backend                |
-| OpenCV             | Image/video processing               |
-| Matplotlib/Seaborn | Visualisation                        |
-| lxml               | Pascal VOC XML parsing               |
-| Google Colab       | Cloud GPU training environment       |
-| Google Drive       | Persistent storage across sessions   |
+- CST8508 Machine Vision, Algonquin College, where this project began.
+- [Safety Helmet Detection dataset](https://www.kaggle.com/datasets/andrewmvd/hard-hat-detection) (Kaggle, andrewmvd).
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) and ByteTrack.
+- Demo footage from [Pexels](https://www.pexels.com) (free licence).
