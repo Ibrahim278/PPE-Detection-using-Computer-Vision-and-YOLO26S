@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/* Design tokens: dark by default (control-room use), light when the OS asks for it. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-bg: #0b0f14;
+  --color-panel: #121821;
+  --color-panel-2: #18202b;
+  --color-line: #263142;
+  --color-ink: #e6edf5;
+  --color-muted: #8b9bb0;
+  --color-brand: #f59e0b;      /* hard-hat amber */
+  --color-brand-ink: #1a1203;
+
+  --color-ok: #22c55e;
+  --color-risk: #f59e0b;
+  --color-bad: #ef4444;
+  --color-unverified: #94a3b8;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f5f7fa;
+    --color-panel: #ffffff;
+    --color-panel-2: #eef2f7;
+    --color-line: #d9e0ea;
+    --color-ink: #0f1722;
+    --color-muted: #5b6b80;
+    --color-ok: #16a34a;
+    --color-risk: #d97706;
+    --color-bad: #dc2626;
+    --color-unverified: #64748b;
+  }
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Reusable component classes (Tailwind v4: @utility so they can be composed with @apply). */
+@utility card { @apply rounded-xl border border-line bg-panel; }
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition
+    disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+}
+@utility btn-primary { @apply btn bg-brand text-brand-ink hover:brightness-110; }
+@utility btn-ghost { @apply btn border border-line bg-panel-2 text-ink hover:border-muted; }
+@utility btn-danger { @apply btn border border-bad/40 text-bad hover:bg-bad/10; }
+@utility input {
+  @apply w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm text-ink placeholder:text-muted
+    focus:border-brand focus:outline-none;
+}
+@utility label { @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted; }

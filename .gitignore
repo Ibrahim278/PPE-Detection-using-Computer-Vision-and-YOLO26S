@@ -28,3 +28,7 @@ ml/*.mlpackage/
 # API runtime data
 api/storage/
 api/*.pt
+
+# Frontend
+web/node_modules/
+web/dist/
