@@ -9,6 +9,7 @@ import "./index.css";
 import NotFound from "./pages/NotFound";
 
 // Pages load on demand, so Live Monitor doesn't download the charting library.
+const Landing = lazy(() => import("./pages/Landing"));
 const LiveMonitor = lazy(() => import("./pages/LiveMonitor"));
 const Analyze = lazy(() => import("./pages/Analyze"));
 const JobDetail = lazy(() => import("./pages/JobDetail"));
@@ -19,10 +20,12 @@ const page = (el: React.ReactNode) => <Suspense fallback={<Spinner label="Loadin
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
 const router = createBrowserRouter([
+  // Landing page: full width, no app sidebar.
+  { path: "/", element: page(<Landing />) },
   {
     element: <Layout />,
     children: [
-      { path: "/", element: page(<LiveMonitor />) },
+      { path: "/live", element: page(<LiveMonitor />) },
       { path: "/analyze", element: page(<Analyze />) },
       { path: "/jobs/:id", element: page(<JobDetail />) },
       { path: "/violations", element: page(<Violations />) },

@@ -6,7 +6,7 @@ import { EmptyState } from "../components/ui";
 export default function NotFound() {
   return (
     <EmptyState icon={Compass} title="Page not found">
-      <Link to="/" className="text-brand hover:underline">Back to Live Monitor</Link>
+      <Link to="/" className="text-brand hover:underline">Back to the home page</Link>
     </EmptyState>
   );
 }

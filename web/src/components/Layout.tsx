@@ -1,8 +1,8 @@
 import { BarChart3, Cpu, HardHat, ScanSearch, Video } from "lucide-react";
-import { NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet } from "react-router";
 
 const NAV = [
-  { to: "/", label: "Live Monitor", icon: Video, end: true },
+  { to: "/live", label: "Live Monitor", icon: Video, end: true },
   { to: "/analyze", label: "Analyze", icon: ScanSearch },
   { to: "/violations", label: "Violations", icon: BarChart3 },
   { to: "/model", label: "Model", icon: Cpu },
@@ -12,13 +12,13 @@ export default function Layout() {
   return (
     <div className="flex min-h-full flex-col md:flex-row">
       <aside className="sticky top-0 z-10 border-b border-line bg-panel md:h-screen md:w-60 md:shrink-0 md:border-r md:border-b-0">
-        <div className="flex items-center gap-2 px-4 py-3 md:px-5 md:py-5">
+        <Link to="/" className="flex items-center gap-2 px-4 py-3 md:px-5 md:py-5" title="SiteGuard home">
           <span className="grid size-8 place-items-center rounded-lg bg-brand text-brand-ink"><HardHat size={18} aria-hidden /></span>
           <div>
             <div className="font-semibold leading-tight">SiteGuard</div>
             <div className="text-xs text-muted">PPE compliance</div>
           </div>
-        </div>
+        </Link>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:px-3" aria-label="Main">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end}
