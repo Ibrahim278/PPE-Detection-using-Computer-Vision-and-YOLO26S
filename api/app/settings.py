@@ -25,6 +25,8 @@ class Settings:
     monitor_config: Path = field(default_factory=lambda: Path(_env("MONITOR_CONFIG", str(REPO_DIR / "ml/configs/monitor.yaml"))))
     metrics_dir: Path = field(default_factory=lambda: Path(_env("METRICS_DIR", str(REPO_DIR / "Evaluation and Testing/v3/metrics"))))
     device: str = field(default_factory=lambda: _env("DEVICE", "auto"))
+    # Override the COCO person model from monitor.yaml, e.g. "yolo26n.pt" (about 2x faster on CPU) or "none".
+    person_model: str = field(default_factory=lambda: _env("PERSON_MODEL", ""))
     cors_origins: list[str] = field(default_factory=lambda: [o.strip() for o in _env(
         "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()])
 

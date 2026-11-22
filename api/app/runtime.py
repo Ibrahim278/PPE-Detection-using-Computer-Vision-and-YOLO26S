@@ -18,6 +18,8 @@ def monitor_config() -> dict:
     cfg = load_config(settings.monitor_config)
     if settings.device != "auto":
         cfg["device"] = settings.device
+    if settings.person_model:
+        cfg["person_model"] = None if settings.person_model.lower() == "none" else settings.person_model
     return cfg
 
 
