@@ -139,6 +139,20 @@ pip install -e ml -e "api[platforms]" && cd api && uvicorn app.main:app --port 8
 
 ---
 
+## Web App (Phase 3)
+
+[`web/`](web/README.md) is a React + Tailwind dashboard for the API: **Live Monitor** (webcam or a
+video file as the camera, with boxes, a live compliance counter and a violation feed), **Analyze**
+(images, video uploads and links, with job progress, an annotated player and a violations timeline),
+a **Violations** dashboard with CSV export, and a **Model** page comparing v2 and v3.
+
+```bash
+cd api && uvicorn app.main:app --port 8000     # terminal 1
+cd web && npm install && npm run dev           # terminal 2, then open http://localhost:5173
+```
+
+---
+
 ## Project Structure
 
 ```
