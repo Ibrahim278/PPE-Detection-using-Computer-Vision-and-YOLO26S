@@ -13,13 +13,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import meta
+from app.routers import detect, meta
 from app.settings import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Load models and run one dummy inference so the first real request is fast.
+    import numpy as np
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.runtime import image_detector
+    await run_in_threadpool(image_detector.detect, np.zeros((640, 640, 3), np.uint8))
     yield
 
 
@@ -28,6 +34,7 @@ def create_app() -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
                        allow_methods=["*"], allow_headers=["*"])
     app.include_router(meta.router, prefix="/api")
+    app.include_router(detect.router, prefix="/api")
     # Annotated videos and snapshots (StaticFiles handles Range requests and blocks path traversal)
     app.mount("/media", StaticFiles(directory=settings.storage_dir), name="media")
     return app
