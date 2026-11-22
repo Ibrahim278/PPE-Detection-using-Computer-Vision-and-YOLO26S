@@ -148,5 +148,34 @@ class ComplianceMonitor:
                 snaps[e.event_id] = _crop(frame, w.person_box or e.box if w else e.box)
         return FrameResult(t, workers, unverified, events, snaps)
 
+    def detect(self, frame: np.ndarray) -> FrameResult:
+        """Single-image detection: no tracking or smoothing.
+
+        A bare head is reported as a violation straight away and worker ids are
+        just indices. Use a separate ComplianceMonitor instance from the one
+        doing ``process()`` (tracking registers callbacks on the model).
+        """
+        r = self.ppe.predict(frame, imgsz=self.imgsz, conf=min(self.conf["helmet"], self.conf["head"]),
+                             classes=[self.helmet_id, self.head_id], device=self.device, verbose=False)[0]
+        heads = []
+        if r.boxes is not None:
+            for box, cls, conf in zip(r.boxes.xyxy.tolist(), r.boxes.cls.tolist(), r.boxes.conf.tolist()):
+                is_head = int(cls) == self.head_id
+                if conf >= self.conf["head" if is_head else "helmet"]:
+                    heads.append((is_head, float(conf), box))
+        persons: list[list[float]] = []
+        if self.person is not None:
+            pr = self.person.predict(frame, classes=[0], conf=self.person_conf, imgsz=self.imgsz,
+                                     device=self.device, verbose=False)[0]
+            persons = pr.boxes.xyxy.tolist() if pr.boxes is not None else []
+        match = associate_heads_to_persons([h[2] for h in heads], persons)
+        workers = [WorkerView(i + 1, "violation" if is_head else "compliant", [round(v, 1) for v in box],
+                              round(conf, 3), 0.0,
+                              [round(v, 1) for v in persons[match[i]]] if i in match else None)
+                   for i, (is_head, conf, box) in enumerate(heads)]
+        matched = set(match.values())
+        unverified = [[round(v, 1) for v in p] for i, p in enumerate(persons) if i not in matched]
+        return FrameResult(0.0, workers, unverified, [])
+
     def finish(self, t: float) -> list[Event]:
         return self.state.close_all(t)

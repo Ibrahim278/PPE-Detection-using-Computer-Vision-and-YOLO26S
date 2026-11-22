@@ -19,6 +19,7 @@ import json
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
@@ -36,7 +37,9 @@ class H264Writer:
         if shutil.which("ffmpeg"):
             self.proc = subprocess.Popen(
                 ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                 "-s", f"{w}x{h}", "-r", f"{fps:.3f}", "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
+                 "-s", f"{w}x{h}", "-r", f"{fps:.3f}", "-i", "-",
+                 "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",  # H.264 4:2:0 needs even dimensions
+                 "-c:v", "libx264", "-preset", "veryfast",
                  "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(path)],
                 stdin=subprocess.PIPE)
         else:
@@ -57,17 +60,25 @@ class H264Writer:
 
 
 def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | None = None,
-        save_video: bool = True) -> dict:
+        save_video: bool = True, monitor: ComplianceMonitor | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
+        on_event: Callable[[dict], None] | None = None,
+        should_stop: Callable[[], bool] | None = None, verbose: bool = True) -> dict:
+    """Process a video/stream. Callbacks let a caller (the API job worker) report
+    progress ``(frames_read, total_frames)``, persist events as they happen, and cancel."""
     out_dir = resolve(out)
     (out_dir / "snapshots").mkdir(parents=True, exist_ok=True)
     is_live = source.isdigit() or source.split(":", 1)[0] in {"rtsp", "rtmp", "http", "https"}
     cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
     if not cap.isOpened():
-        raise SystemExit(f"Could not open source: {source}")
+        raise ValueError(f"Could not open source: {source}")
     src_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    if not 1 <= src_fps <= 240:
+        src_fps = 25.0
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    monitor = ComplianceMonitor.from_config(cfg)
+    monitor = monitor or ComplianceMonitor.from_config(cfg)
     writer = H264Writer(out_dir / "annotated.mp4", w, h, src_fps / stride) if save_video else None
     ev_f = open(out_dir / "events.jsonl", "w")
     fr_f = open(out_dir / "frames.jsonl", "w")
@@ -80,7 +91,10 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
                 cv2.imwrite(str(p), snaps[e.event_id])
                 rec["snapshot"] = str(p.relative_to(out_dir))
             ev_f.write(json.dumps(rec) + "\n")
-            print(f"[{rec['t']:7.2f}s] {e.type:18s} worker #{e.worker_id}"
+            if on_event:
+                on_event(rec)
+            if verbose:
+                print(f"[{rec['t']:7.2f}s] {e.type:18s} worker #{e.worker_id}"
                   + (f"  ({e.duration_s:.1f}s, {e.reason})" if e.type == "violation_ended" else ""))
 
     n = processed = 0
@@ -99,6 +113,8 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
             t = (time.perf_counter() - t0) if is_live else (n - 1) / src_fps
             if max_seconds and t > max_seconds:
                 break
+            if should_stop and should_stop():
+                break
             s0 = time.perf_counter()
             res = monitor.process(frame, t)
             infer_s += time.perf_counter() - s0
@@ -110,6 +126,8 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
             fr_f.write(json.dumps({"t": round(t, 3), **summ}) + "\n")
             if writer:
                 writer.write(draw(frame, res, fps=processed / infer_s if infer_s else None))
+            if on_progress and processed % 10 == 1:
+                on_progress(n, total)
     except KeyboardInterrupt:
         print("Stopped.")
     finally:
@@ -123,7 +141,7 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
     events = [json.loads(l) for l in open(out_dir / "events.jsonl")]
     summary = {
         "source": source, "frames_read": n, "frames_processed": processed,
-        "video_seconds": round(t, 2),
+        "video_seconds": round(t, 2), "width": w, "height": h, "fps": round(src_fps, 2),
         "pipeline_fps": round(processed / infer_s, 1) if infer_s else None,
         "ms_per_frame": round(1000 * infer_s / processed, 1) if processed else None,
         "violations": sum(e["type"] == "violation_started" for e in events),
@@ -131,7 +149,10 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
         "thresholds": monitor.conf, "device": monitor.device,
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
-    print(json.dumps(summary, indent=2))
+    if on_progress:
+        on_progress(n, max(total, n))
+    if verbose:
+        print(json.dumps(summary, indent=2))
     return summary
 
 
