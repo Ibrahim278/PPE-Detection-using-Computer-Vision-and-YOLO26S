@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { tooltipItemStyle, tooltipLabelStyle, tooltipStyle } from "../components/charts";
 import { ErrorBox, PageHeader, Spinner, StatCard } from "../components/ui";
 import { api } from "../lib/api";
 import { num, pct } from "../lib/format";
@@ -41,7 +42,7 @@ export default function ModelPage() {
                   <XAxis dataKey="label" stroke="var(--color-muted)" fontSize={11} />
                   <YAxis domain={[0.5, 1]} stroke="var(--color-muted)" fontSize={11} />
                   <Tooltip formatter={(v: number) => v.toFixed(3)} cursor={{ fill: "var(--color-panel-2)" }}
-                    contentStyle={{ background: "var(--color-panel)", border: "1px solid var(--color-line)", borderRadius: 8 }} />
+                    contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="v2" name="v2 (notebook)" fill="var(--color-unverified)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
                   <Bar dataKey="v3" name="v3 (current)" fill="var(--color-brand)" radius={[3, 3, 0, 0]} isAnimationActive={false} />

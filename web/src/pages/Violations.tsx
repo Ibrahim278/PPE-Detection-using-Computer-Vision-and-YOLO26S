@@ -3,6 +3,7 @@ import { Download, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { ChartCard, tooltipItemStyle, tooltipLabelStyle, tooltipStyle, ViolationHeatmap } from "../components/charts";
 import { EventList } from "../components/EventList";
 import { EmptyState, ErrorBox, PageHeader, Spinner, StatCard } from "../components/ui";
 import { api, type ViolationEvent } from "../lib/api";
@@ -55,22 +56,28 @@ export default function Violations() {
 
       {events.data && events.data.length > 0 && (
         <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
-          <div className="card h-fit p-4">
-            <h2 className="mb-1 text-sm font-semibold">Incidents over time</h2>
-            <p className="mb-3 text-xs text-muted">Grouped by {buckets.unit}, based on when the incident was recorded.</p>
-            <div className="h-64" role="img" aria-label={`Bar chart of violations per ${buckets.unit}`}>
-              <ResponsiveContainer>
-                <BarChart data={buckets.rows} margin={{ left: -20, right: 8, top: 4 }}>
-                  <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" stroke="var(--color-muted)" fontSize={11} />
-                  <YAxis allowDecimals={false} stroke="var(--color-muted)" fontSize={11} />
-                  <Tooltip cursor={{ fill: "var(--color-panel-2)" }}
-                    contentStyle={{ background: "var(--color-panel)", border: "1px solid var(--color-line)", borderRadius: 8 }} />
-                  <Bar dataKey="video" name="Videos" stackId="a" fill="var(--color-brand)" isAnimationActive={false} />
-                  <Bar dataKey="live" name="Live" stackId="a" fill="var(--color-bad)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="h-fit space-y-6">
+            <div className="card p-4">
+              <h2 className="mb-1 text-sm font-semibold">Incidents over time</h2>
+              <p className="mb-3 text-xs text-muted">Grouped by {buckets.unit}, based on when the incident was recorded.</p>
+              <div className="h-64" role="img" aria-label={`Bar chart of violations per ${buckets.unit}`}>
+                <ResponsiveContainer>
+                  <BarChart data={buckets.rows} margin={{ left: -20, right: 8, top: 4 }}>
+                    <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" stroke="var(--color-muted)" fontSize={11} />
+                    <YAxis allowDecimals={false} stroke="var(--color-muted)" fontSize={11} />
+                    <Tooltip cursor={{ fill: "var(--color-panel-2)" }}
+                      contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
+                    <Bar dataKey="video" name="Videos" stackId="a" fill="var(--color-brand)" isAnimationActive={false} />
+                    <Bar dataKey="live" name="Live" stackId="a" fill="var(--color-bad)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+            <ChartCard title="When violations happen"
+              subtitle="By weekday and hour, in your local time. Live alerts count when they happened; videos count when they were analysed.">
+              <ViolationHeatmap events={events.data} />
+            </ChartCard>
           </div>
           <div className="card max-h-[75vh] overflow-y-auto">
             <h2 className="sticky top-0 border-b border-line bg-panel px-4 py-3 text-sm font-semibold">
