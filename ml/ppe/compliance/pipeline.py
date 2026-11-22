@@ -85,7 +85,12 @@ class ComplianceMonitor:
         if thresholds_file:
             tuned = json.loads(Path(resolve(thresholds_file)).read_text())
             self.conf.update({k: v["conf"] for k, v in tuned.items() if k in self.conf})
-        self.person = YOLO(str(person_model)) if person_model else None
+        if person_model:
+            # Prefer a copy next to the configs (ml/); otherwise Ultralytics downloads it.
+            local = resolve(person_model)
+            self.person = YOLO(str(local) if local.exists() else str(person_model))
+        else:
+            self.person = None
         self.person_conf = person_conf
         self.state = ComplianceTracker(**smoothing)
 
