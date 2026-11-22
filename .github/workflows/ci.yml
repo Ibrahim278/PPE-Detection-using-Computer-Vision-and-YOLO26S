@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Only the LFS files tests and the API image need (~30 MB). Pulling every LFS file
+  # (videos, old weights) on each run would use up GitHub's LFS bandwidth quota.
+  LFS_INCLUDE: "Training and Validation/ppe_yolo26s_v3/weights/best.pt,Project Demo Videos/clip_v1_s2/clip_v1_s2.avi"
+
+jobs:
+  python:
+    name: ML + API tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Restore LFS objects
+        id: lfs-cache
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.gitattributes') }}-v3-weights-clip_v1_s2
+      - name: Pull needed LFS files
+        run: git lfs pull --include="$LFS_INCLUDE"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: api/requirements.docker.txt
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Python packages
+        run: |
+          pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r api/requirements.docker.txt pytest
+          pip install --no-deps -e ml -e api
+      - name: Cache COCO person model
+        uses: actions/cache@v4
+        with:
+          path: ml/yolo26s.pt
+          key: yolo26s-ultralytics-8.4
+      - name: Tests
+        env:
+          PPE_DEVICE: cpu
+          YOLO_CONFIG_DIR: /tmp/ultralytics
+        run: pytest -q ml/tests api/tests
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-fund
+      - name: Type-check and build
+        run: npm run build
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [python, web]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Restore LFS objects
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.gitattributes') }}-v3-weights-clip_v1_s2
+      - name: Pull model weights
+        run: git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: api/Dockerfile
+          tags: siteguard-api:ci
+          load: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: web
+          tags: siteguard-web:ci
+          load: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+      - name: Smoke test the stack
+        run: |
+          docker network create ppe
+          docker run -d --name api --network ppe siteguard-api:ci
+          docker run -d --name web --network ppe -p 8080:80 siteguard-web:ci
+          for i in $(seq 1 60); do curl -fsS http://localhost:8080/api/health && break; sleep 3; done
+          curl -fsS http://localhost:8080/api/model | python3 -c "import json,sys; m=json.load(sys.stdin); assert m['classes']==['helmet','head'], m; print('model ok', m['thresholds'])"
+          curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+          curl -fsS http://localhost:8080/violations | grep -q '<div id="root">'   # SPA fallback
+      - name: Container logs
+        if: failure()
+        run: docker logs api; docker logs web
