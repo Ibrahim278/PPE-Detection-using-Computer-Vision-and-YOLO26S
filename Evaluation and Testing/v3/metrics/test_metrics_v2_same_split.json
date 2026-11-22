@@ -1,0 +1,29 @@
+{
+  "weights": "<repo>/Training and Validation/ppe_yolo26s_v2/weights/best.pt",
+  "data": "<repo>/ml/data/ppe2/data.yaml",
+  "split": "test",
+  "mAP50": 0.9629,
+  "mAP50-95": 0.6354,
+  "precision": 0.9418,
+  "recall": 0.9177,
+  "per_class": {
+    "helmet": {
+      "precision": 0.9482,
+      "recall": 0.9348,
+      "mAP50": 0.9721,
+      "mAP50-95": 0.6389
+    },
+    "head": {
+      "precision": 0.9354,
+      "recall": 0.9007,
+      "mAP50": 0.9536,
+      "mAP50-95": 0.6319
+    }
+  },
+  "speed_ms": {
+    "preprocess": 0.13,
+    "inference": 1.4,
+    "loss": 0.0,
+    "postprocess": 12.18
+  }
+}
