@@ -101,6 +101,7 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
     t0 = time.perf_counter()
     infer_s = 0.0
     peak = {"workers": 0, "violations": 0}
+    head_frames = compliant_frames = 0   # worker-frames with a visible head / with a helmet
     t = 0.0
     try:
         while True:
@@ -121,6 +122,8 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
             processed += 1
             log_events(res.events, res.snapshots)
             summ = res.summary
+            head_frames += summ["compliant"] + summ["at_risk"] + summ["violations"]
+            compliant_frames += summ["compliant"]
             for k in peak:
                 peak[k] = max(peak[k], summ[k])
             fr_f.write(json.dumps({"t": round(t, 3), **summ}) + "\n")
@@ -146,6 +149,8 @@ def run(source: str, out: str, cfg: dict, stride: int = 1, max_seconds: float | 
         "ms_per_frame": round(1000 * infer_s / processed, 1) if processed else None,
         "violations": sum(e["type"] == "violation_started" for e in events),
         "peak_workers_in_frame": peak["workers"], "peak_violations_in_frame": peak["violations"],
+        # Share of visible worker heads that wore a helmet, over all processed frames (None: no heads seen).
+        "compliance_rate": round(compliant_frames / head_frames, 4) if head_frames else None,
         "thresholds": monitor.conf, "device": monitor.device,
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))

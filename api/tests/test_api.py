@@ -54,6 +54,8 @@ def test_upload_job_end_to_end(client):
     assert job["status"] == "done", job["error"]
     assert job["progress"] == 1.0
     assert job["summary"]["frames_processed"] == 300 and job["summary"]["source"] is None
+    # a clip with one sustained no-helmet worker among helmeted ones: mostly, not fully, compliant
+    assert 0.5 < job["summary"]["compliance_rate"] < 1.0
 
     # the real no-helmet road worker in this clip becomes one stored event with a snapshot
     assert len(job["events"]) >= 1
