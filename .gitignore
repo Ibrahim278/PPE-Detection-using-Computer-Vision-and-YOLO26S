@@ -24,3 +24,7 @@ ml/*.onnx
 ml/*.mlpackage/
 *.egg-info/
 .pytest_cache/
+
+# API runtime data
+api/storage/
+api/*.pt
