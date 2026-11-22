@@ -77,6 +77,7 @@ server → {"type":"error","message":"…"}             (bad frame; stream conti
 | `PPE_PERSON_MODEL` | from `monitor.yaml` (`yolo26s.pt`) | e.g. `yolo26n.pt` (about 2× faster on CPU; the Docker image's default) or `none` |
 | `PPE_CPU_THREADS` | all available cores | CPU inference threads (Ultralytics would otherwise force 1) |
 | `PPE_CORS_ORIGINS` | `http://localhost:5173,…` | comma-separated frontend origins |
+| `PPE_CORS_ORIGIN_REGEX` | – | extra origins as a regex, e.g. Vercel previews `https://siteguard(-[a-z0-9-]+)?\.vercel\.app` |
 | `PPE_MAX_IMAGE_MB` / `PPE_MAX_UPLOAD_MB` | 15 / 500 | |
 | `PPE_MAX_VIDEO_SECONDS` | 600 | longer videos need a `start`/`end` section |
 | `PPE_MAX_STREAMS` | 2 | concurrent live streams |

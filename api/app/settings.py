@@ -30,6 +30,9 @@ class Settings:
     cors_origins: list[str] = field(default_factory=lambda: [o.strip() for o in _env(
         "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()])
 
+    # Optional regex for extra allowed origins, e.g. Vercel previews: https://siteguard(-[a-z0-9-]+)?\.vercel\.app
+    cors_origin_regex: str | None = field(default_factory=lambda: _env("CORS_ORIGIN_REGEX", "") or None)
+
     max_image_mb: float = field(default_factory=lambda: float(_env("MAX_IMAGE_MB", "15")))
     max_upload_mb: float = field(default_factory=lambda: float(_env("MAX_UPLOAD_MB", "500")))
     max_video_seconds: float = field(default_factory=lambda: float(_env("MAX_VIDEO_SECONDS", "600")))

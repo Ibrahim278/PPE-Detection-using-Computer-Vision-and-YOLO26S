@@ -16,6 +16,46 @@ docker compose up --build
 
 Open <http://localhost:8080>. Data persists in the `ppe-data` volume (`docker compose down -v` deletes it).
 
+## Frontend on Vercel + API on a container host
+
+Vercel is a good fit for the **web app** (a static Vite build), but it **can't run the API**: Python
+functions there are capped at about 250 MB (PyTorch alone is over 600 MB), can't run background video
+jobs, have no persistent disk for the database and videos, and don't support the WebSocket that Live
+Monitor uses. So deploy the API container somewhere that runs Docker, and point the Vercel app at it.
+
+**1. Deploy the API** (`api/Dockerfile`, build context = repo root) on any Docker host with HTTPS:
+Render, Railway, Fly.io, Google Cloud Run (min instances 1, since jobs run in the background), AWS, or a
+VPS. Give it a persistent volume at `/data`, 2+ GB RAM, and set:
+
+```
+PPE_CORS_ORIGINS=https://<your-project>.vercel.app
+PPE_CORS_ORIGIN_REGEX=https://<your-project>(-[a-z0-9-]+)?\.vercel\.app   # optional: preview deployments
+```
+
+The build needs the model weights, which are in Git LFS: make sure the host fetches LFS files
+(or run `git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"` before
+building). Check it works: `https://<api-host>/api/health` returns `{"status":"ok"}`.
+
+**2. Deploy the web app on Vercel**
+1. *Add New → Project*, import this GitHub repository.
+2. **Root Directory:** `web` (Vercel then picks up `web/vercel.json`: Vite, `npm ci`, `dist/`, SPA routing).
+3. **Environment variable:** `VITE_API_URL=https://<api-host>` (no trailing slash). It's baked in at
+   build time, so redeploy after changing it.
+4. Leave *Git LFS* off in the Vercel project settings: the web build doesn't need the LFS files,
+   and fetching them would use up your LFS bandwidth.
+5. Deploy. The browser then calls the API directly: HTTPS for requests and media, WSS for Live Monitor.
+
+**Checks after deploying:** open the Model page (it shows metrics if the API is reachable and CORS
+is right); in Analyze, upload a short video; on Live Monitor, allow the camera (Vercel serves HTTPS,
+so the webcam works).
+
+**Common problems**
+- *"Can't reach the API server"* or CORS errors: the Vercel URL isn't in `PPE_CORS_ORIGINS`/`PPE_CORS_ORIGIN_REGEX`,
+  or `VITE_API_URL` is wrong (check for a trailing slash, or `http://` instead of `https://`).
+- *Live Monitor won't connect:* the API host must allow WebSockets on `/api/stream` (most do; some
+  free tiers or proxies don't).
+- *Jobs vanish or stop:* the API host scaled to zero or restarted. Keep one instance always on.
+
 ## Requirements for a server
 
 - **CPU / RAM:** 2–4 vCPU and 2–4 GB RAM is enough for a demo. Measured in Docker on an Apple M5
