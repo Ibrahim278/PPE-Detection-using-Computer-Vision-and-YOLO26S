@@ -15,7 +15,9 @@ export interface FeedItem {
   reason?: string | null;
 }
 
-const MAX_FPS = 15;          // frames sent per second (the server drops anything it can't keep up with)
+const MAX_FPS = 20;          // frames sent per second (the server drops anything it can't keep up with)
+const MAX_IN_FLIGHT = 2;     // keeps the server busy while the next frame is on the wire
+export const MIN_TRACKING_FPS = 10; // below this, heads move too far between frames to be tracked
 const MAX_WIDTH = 1280;      // downscale bigger cameras before sending
 const JPEG_QUALITY = 0.92;   // heavier compression can hide borderline bare heads
 
@@ -35,7 +37,7 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
   const mediaStream = useRef<MediaStream | null>(null);
   const objectUrl = useRef<string | null>(null);
   const raf = useRef<number>(0);
-  const inFlight = useRef(false);
+  const inFlight = useRef(0);
   const lastSent = useRef(0);
   const sentAt = useRef(new Map<number, number>());
   const sentCount = useRef(0);
@@ -52,7 +54,7 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
     if (v) { v.pause(); v.srcObject = null; v.removeAttribute("src"); v.load(); }
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     objectUrl.current = null;
-    inFlight.current = false;
+    inFlight.current = 0;
     sentAt.current.clear();
   }, [video]);
 
@@ -77,12 +79,12 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
     raf.current = requestAnimationFrame(loop);
     const v = video.current;
     const sock = ws.current;
-    if (!v || !sock || sock.readyState !== WebSocket.OPEN || inFlight.current) return;
+    if (!v || !sock || sock.readyState !== WebSocket.OPEN || inFlight.current >= MAX_IN_FLIGHT) return;
     if (v.readyState < 2 || !v.videoWidth) return;
     const now = performance.now();
     if (now - lastSent.current < 1000 / MAX_FPS) return;
     lastSent.current = now;
-    inFlight.current = true;
+    inFlight.current += 1;
 
     const scale = Math.min(1, MAX_WIDTH / v.videoWidth);
     const c = (canvas.current ??= document.createElement("canvas"));
@@ -90,7 +92,7 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
     c.height = Math.round(v.videoHeight * scale);
     c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
     c.toBlob((blob) => {
-      if (!blob || ws.current !== sock || sock.readyState !== WebSocket.OPEN) { inFlight.current = false; return; }
+      if (!blob || ws.current !== sock || sock.readyState !== WebSocket.OPEN) { inFlight.current = Math.max(0, inFlight.current - 1); return; }
       sentCount.current += 1;
       sentAt.current.set(sentCount.current, performance.now());
       sock.send(blob);
@@ -140,12 +142,14 @@ export function useLiveStream(video: React.RefObject<HTMLVideoElement | null>) {
     sock.onmessage = (ev) => {
       const msg = JSON.parse(ev.data as string) as StreamMessage;
       if (msg.type === "ready") { setStatus("live"); raf.current = requestAnimationFrame(loop); return; }
+      // The server drops stale frames, so a reply means every earlier frame is done too.
       if (msg.type === "error") {
-        inFlight.current = false;
+        inFlight.current = 0;
         if (msg.frame_id == null) { setError(msg.message); setStatus("error"); }
         return;
       }
-      inFlight.current = false;
+      inFlight.current = 0;
+      for (const id of sentAt.current.keys()) if (id < msg.frame_id) sentAt.current.delete(id);
       const now = performance.now();
       const sent = sentAt.current.get(msg.frame_id);
       sentAt.current.delete(msg.frame_id);

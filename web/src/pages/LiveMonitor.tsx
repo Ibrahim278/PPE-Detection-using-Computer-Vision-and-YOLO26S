@@ -5,7 +5,7 @@ import { useOverlay } from "../components/MediaOverlay";
 import { ComplianceCounter, EmptyState, ErrorBox, PageHeader, Spinner } from "../components/ui";
 import { mediaUrl } from "../lib/api";
 import { duration } from "../lib/format";
-import { useLiveStream } from "../lib/useLiveStream";
+import { MIN_TRACKING_FPS, useLiveStream } from "../lib/useLiveStream";
 
 const REASON: Record<string, string> = { helmet_on: "helmet put on", lost: "left view", stopped: "stream stopped" };
 const EMPTY: never[] = [];
@@ -55,7 +55,15 @@ export default function LiveMonitor() {
         <LiveBadge status={live.status} fps={live.stats.fps} latency={live.stats.latency} />
       </div>
 
-      <div className="mb-4"><ErrorBox error={live.error} /></div>
+      <div className="mb-4 space-y-2">
+        <ErrorBox error={live.error} />
+        {live.status === "live" && live.stats.fps > 0 && live.stats.fps < MIN_TRACKING_FPS && (
+          <div role="status" className="rounded-lg border border-risk/40 bg-risk/10 px-3 py-2 text-sm text-risk">
+            Low frame rate ({live.stats.fps.toFixed(0)} fps). Tracking needs about {MIN_TRACKING_FPS} fps or more, so workers may not
+            be picked up. Keep this tab visible and in front; background tabs are slowed down by the browser.
+          </div>
+        )}
+      </div>
 
       <div className="mb-4"><ComplianceCounter summary={f?.summary ?? null} compact /></div>
 
