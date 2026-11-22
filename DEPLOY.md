@@ -23,7 +23,8 @@ functions there are capped at about 250 MB (PyTorch alone is over 600 MB), can't
 jobs, have no persistent disk for the database and videos, and don't support the WebSocket that Live
 Monitor uses. So deploy the API container somewhere that runs Docker, and point the Vercel app at it.
 
-**1. Deploy the API** (`api/Dockerfile`, build context = repo root) on any Docker host with HTTPS:
+**1. Deploy the API.** The recommended path is Render (next section). Any other Docker host with HTTPS works too
+(`api/Dockerfile`, build context = repo root):
 Render, Railway, Fly.io, Google Cloud Run (min instances 1, since jobs run in the background), AWS, or a
 VPS. Give it a persistent volume at `/data`, 2+ GB RAM, and set:
 
@@ -55,6 +56,46 @@ so the webcam works).
 - *Live Monitor won't connect:* the API host must allow WebSockets on `/api/stream` (most do; some
   free tiers or proxies don't).
 - *Jobs vanish or stop:* the API host scaled to zero or restarted. Keep one instance always on.
+
+## API on Render (recommended)
+
+CI builds the API image on every push to `main` (with the model weights from Git LFS), smoke-tests it, and
+publishes it to GitHub Container Registry as `ghcr.io/ibrahim278/siteguard-api` (`:latest` and `:sha-<commit>`).
+Render runs that image, so it never needs Git LFS or has to build PyTorch itself.
+
+**Cost:** the `standard` plan (1 CPU, 2 GB RAM, about $25/month) plus a 5 GB disk (about $1.25/month). The free and
+starter plans have 512 MB of RAM, less than the API uses at idle. Billing is per second while running, so you can
+*Suspend* the service in the dashboard between demos. Check current prices at render.com/pricing.
+
+**One-time setup**
+
+1. **Publish the first image:** push to `main` (or re-run the CI workflow) and wait for the *Docker images* job to pass.
+2. **Let Render pull it:** on GitHub, go to your profile → *Packages* → `siteguard-api` → *Package settings* →
+   *Change visibility* → **Public**. (To keep it private instead, create a GitHub token with `read:packages`, add it in
+   Render under *Workspace Settings → Container Registry Credentials* as `ghcr`, and uncomment `creds` in `render.yaml`.)
+3. **Create the service:** in Render, *New → Blueprint*, pick this repository; it reads `render.yaml`.
+   When asked, enter:
+   - `PPE_CORS_ORIGINS`: your Vercel URL, e.g. `https://siteguard.vercel.app`
+   - `PPE_CORS_ORIGIN_REGEX`: optional, for Vercel preview URLs, e.g. `https://siteguard(-[a-z0-9-]+)?\.vercel\.app`
+4. **Wait for the first deploy** (pulling the ~1 GB image takes a few minutes), then open
+   `https://<service>.onrender.com/api/health`. It should return `{"status":"ok"}`.
+5. **Auto-deploy on every push:** in the Render service, *Settings → Deploy Hook*, copy the URL. On GitHub:
+   *Settings → Secrets and variables → Actions → New repository secret*, name `RENDER_DEPLOY_HOOK_URL`, paste the URL.
+   From then on, each green CI run on `main` deploys that exact image (`:sha-<commit>`) to Render.
+6. **Connect Vercel:** set `VITE_API_URL=https://<service>.onrender.com` in the Vercel project and redeploy it.
+
+**What to expect on 1 CPU:** image and video analysis work, but slower than the numbers above (roughly a few frames
+per second for video jobs). Live Monitor will be too slow for reliable tracking (it needs about 10 FPS), so use it
+locally or upgrade the plan. `render.yaml` sets `PPE_CPU_THREADS=1` and `PPE_MAX_STREAMS=1` to match the plan;
+raise them if you pick a bigger one.
+
+**Notes**
+- The container's entrypoint uses Render's `$PORT`, makes the mounted disk writable for the unprivileged `app` user,
+  then drops root privileges.
+- A service with a disk restarts with a short gap during deploys (no zero-downtime deploys), and running jobs are
+  marked failed on restart.
+- If a build fails with "best.pt is a Git LFS pointer", the weights weren't downloaded before building
+  (`git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"`).
 
 ## Requirements for a server
 

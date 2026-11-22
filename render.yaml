@@ -1,0 +1,32 @@
+# Render Blueprint for the SiteGuard API (the web app is deployed separately on Vercel).
+# Render pulls the image CI publishes to GitHub Container Registry on every push to main.
+# Setup: see DEPLOY.md -> "API on Render".
+services:
+  - type: web
+    name: siteguard-api
+    runtime: image
+    image:
+      url: ghcr.io/ibrahim278/siteguard-api:latest
+      # Private package? Add a GitHub token (read:packages) under Workspace Settings ->
+      # Container Registry Credentials, then uncomment:
+      # creds:
+      #   fromRegistryCreds:
+      #     name: ghcr
+    plan: standard          # 1 CPU / 2 GB. The free and starter plans (512 MB) can't hold the models.
+    region: oregon
+    healthCheckPath: /api/health
+    disk:
+      name: siteguard-data  # SQLite database, annotated videos, snapshots
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: PPE_CORS_ORIGINS          # your Vercel URL, e.g. https://siteguard.vercel.app
+        sync: false
+      - key: PPE_CORS_ORIGIN_REGEX     # optional, for Vercel previews: https://siteguard(-[a-z0-9-]+)?\.vercel\.app
+        sync: false
+      - key: PPE_CPU_THREADS           # match the plan's CPU count; more threads than cores slows inference
+        value: "1"
+      - key: PPE_MAX_STREAMS           # one live stream is all 1 CPU can handle
+        value: "1"
+      - key: PPE_PERSON_MODEL
+        value: yolo26n.pt
