@@ -67,26 +67,44 @@ python -m ppe.benchmark --weights best.pt best.onnx --source clip.mp4
 
 Tuning lives in `configs/monitor.yaml`.
 
-## Measured so far (Apple M5, v2 weights)
+## Results: v2 vs v3 on the same test set (502 images, helmet + head)
 
-| Measurement | Result |
-|---|---|
-| Detector only, MPS, 640 px | 10.9 ms median (~92 FPS) |
-| Detector only, CPU, 640 px | 35.6 ms median (~28 FPS) |
-| Full monitor (PPE + person model + tracking), MPS, 640×360 clips | 29–37 FPS |
+Both models are scored on the identical, unseen test split
+(`ppe.evaluate`, PyTorch, default rectangular batches).
 
-## Accuracy: v2 baseline on the shared test set (502 images, helmet + head)
+| Model | mAP@50 | mAP@50-95 | Precision | Recall | helmet mAP@50-95 | head mAP@50-95 | head P / R | best-F1 conf (helmet / head) |
+|---|---|---|---|---|---|---|---|---|
+| v2 | 0.963 | 0.635 | 0.942 | 0.918 | 0.639 | 0.632 | 0.935 / 0.901 | 0.53 / 0.42 |
+| **v3** | **0.963** | **0.639** | 0.932 | **0.926** | **0.644** | **0.635** | 0.915 / **0.908** | 0.39 / 0.45 |
 
-`python -m ppe.evaluate --weights <v2 best.pt> --classes 0 1 --out outputs/eval_v2`
+**Accuracy is effectively a tie.** v3 has slightly tighter boxes and higher recall,
+and slightly lower bare-head precision; with 574 head boxes, gaps under ~0.01
+are within noise. v2's headline 0.64 mAP@50 came from averaging in the
+broken `person` class (0.008). The Phase 1 gains are in the system:
 
-| Model | mAP@50 | mAP@50-95 | P | R | helmet mAP@50-95 | head mAP@50-95 | best-F1 conf (helmet / head) |
-|---|---|---|---|---|---|---|---|
-| v2 | 0.963 | 0.635 | 0.942 | 0.918 | 0.639 | 0.632 | 0.53 / 0.42 |
-| v3 | training… | | | | | | |
+* a clean 2-class model (no junk `person` boxes), with people from a COCO model;
+* tracking + smoothing + events: on the demo clips v3 tracked more workers in every
+  clip (e.g. peak 12 → 13, 8 → 12) and flagged a real no-helmet road worker in
+  `clip_v1_s2` that the v2 output labelled but never turned into an alert
+  (see `Evaluation and Testing/v3/`);
+* tuned per-class thresholds, browser-playable MP4 output, ONNX export.
 
-v2's README reports 0.64 mAP@50 overall because the broken `person` class
-(0.008) is averaged in; on the two classes that decide compliance it was
-already strong. The bar for v3 is mAP@50-95 > 0.635 (tighter boxes) and head
-recall > 0.90 (fewer missed violations).
+Training: 100 epochs, 8.0 h on an Apple M5 (MPS, batch 16); best epoch 86.
+Artifacts: `Training and Validation/ppe_yolo26s_v3/` (weights, curves, config) and
+`Evaluation and Testing/v3/` (metrics, thresholds, demo videos, snapshots).
 
-1 epoch takes about 5 minutes on an Apple M5 (MPS, batch 16).
+### ONNX export
+
+`best.onnx` (38 MB) scores 0.963 / 0.619 on the test set. That equals the
+PyTorch model evaluated the same way (square 640 input, batch 1: 0.963 / 0.619),
+so the export is exact; the gap to 0.639 is from square padding versus
+rectangular batches, not from the conversion.
+
+## Speed (Apple M5)
+
+| Weights | Backend | median ms | FPS |
+|---|---|---|---|
+| v3 `best.pt` | MPS | 11.3 | 89 |
+| v3 `best.pt` | CPU (PyTorch) | 34.1 | 29 |
+| v3 `best.onnx` | CPU (onnxruntime) | 37.7 | 27 |
+| Full monitor (PPE + person + tracking), 640×360 clips | MPS | 27–31 | 32–37 |

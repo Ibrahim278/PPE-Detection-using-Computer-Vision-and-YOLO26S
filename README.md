@@ -110,6 +110,23 @@ Training curves, confusion matrices, and PR curves are saved in `Training and Va
 
 ---
 
+## v3: Compliance Monitoring (Phase 1)
+
+The notebook pipeline is now a reusable Python package in [`ml/`](ml/README.md), with:
+
+- a **2-class model (helmet / head)**, retrained on the same split as v2. People are detected by a pretrained COCO model instead of the unreliable `person` class;
+- **per-worker tracking** (ByteTrack), temporal smoothing, and **one event per violation** with a snapshot;
+- per-class tuned thresholds, browser-playable H.264 output, ONNX export, and benchmarks.
+
+Same test set, helmet + head: v2 0.963 / 0.635 vs **v3 0.963 / 0.639** (mAP@50 / mAP@50-95), with higher recall (0.918 → 0.926).
+Weights: `Training and Validation/ppe_yolo26s_v3/weights/` · Results and demo videos: `Evaluation and Testing/v3/`.
+
+```bash
+cd ml && pip install -e . && python -m ppe.monitor --source your_video.mp4 --out outputs/run
+```
+
+---
+
 ## Project Structure
 
 ```
