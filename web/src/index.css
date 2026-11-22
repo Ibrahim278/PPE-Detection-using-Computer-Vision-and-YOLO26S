@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Design tokens: dark by default (control-room use), light when the OS asks for it. */
+/* Design tokens. The app is dark-only (control-room style), whatever the OS appearance setting. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -29,26 +29,8 @@
   --color-heat-5: #fca5a5;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --color-bg: #f5f7fa;
-    --color-panel: #ffffff;
-    --color-panel-2: #eef2f7;
-    --color-line: #d9e0ea;
-    --color-ink: #0f1722;
-    --color-muted: #5b6b80;
-    --color-ok: #16a34a;
-    --color-risk: #d97706;
-    --color-bad: #dc2626;
-    --color-unverified: #64748b;
-    --color-chart: #b45309;     /* amber-700: >= 3:1 on white, unlike the brand amber */
-    --color-heat-1: #f87171;
-    --color-heat-2: #e53e3e;
-    --color-heat-3: #c81e1e;
-    --color-heat-4: #9b1c1c;
-    --color-heat-5: #6b1414;
-  }
-}
+/* Tell the browser the page is dark so native UI (selects, scrollbars, video controls) matches. */
+:root { color-scheme: dark; }
 
 html, body, #root { height: 100%; }
 body {
