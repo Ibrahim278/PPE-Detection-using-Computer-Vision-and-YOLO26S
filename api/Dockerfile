@@ -25,6 +25,10 @@ RUN pip install -r /tmp/requirements.txt
 
 # 2) The model files the API serves (keep repo-relative paths; configs reference them).
 COPY ["Training and Validation/ppe_yolo26s_v3/weights/best.pt", "/app/Training and Validation/ppe_yolo26s_v3/weights/best.pt"]
+# Fail early if the weights are a Git LFS pointer (repo cloned without LFS) instead of the 20 MB model.
+RUN if head -c 40 "/app/Training and Validation/ppe_yolo26s_v3/weights/best.pt" | grep -q "git-lfs"; then \
+      echo "ERROR: best.pt is a Git LFS pointer. Run: git lfs pull --include='Training and Validation/ppe_yolo26s_v3/weights/best.pt'" >&2; exit 1; \
+    fi
 COPY ["Evaluation and Testing/v3/metrics/", "/app/Evaluation and Testing/v3/metrics/"]
 
 # 3) Code. Editable installs keep ppe's config paths relative to /app/ml.
@@ -40,12 +44,13 @@ RUN pip install --no-deps -e /app/ml -e /app/api
 RUN cd /app/ml && python -c "from ultralytics import YOLO; YOLO('yolo26n.pt')" && test -f /app/ml/yolo26n.pt
 
 RUN useradd --create-home --uid 10001 app && mkdir -p /data /tmp/ultralytics && chown -R app:app /data /tmp/ultralytics
-USER app
+COPY --chmod=755 api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 VOLUME ["/data"]
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"
+  CMD python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\", \"8000\")}/api/health', timeout=4).status == 200 else 1)"
 
+# The entrypoint starts as root only to fix /data ownership, then runs uvicorn as "app".
 # One worker: jobs run on an in-process queue and live streams are limited per process.
-CMD ["uvicorn", "app.main:app", "--app-dir", "/app/api", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
+ENTRYPOINT ["docker-entrypoint.sh"]

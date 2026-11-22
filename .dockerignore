@@ -1,6 +1,7 @@
 # Build context for api/Dockerfile (repo root): only what the image COPYs.
 **
 !api/Dockerfile
+!api/docker-entrypoint.sh
 !api/requirements.docker.txt
 !api/pyproject.toml
 !api/app/**
