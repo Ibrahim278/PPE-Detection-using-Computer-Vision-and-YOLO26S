@@ -1,6 +1,6 @@
 # Render Blueprint for the SiteGuard API (the web app is deployed separately on Vercel).
 # Render pulls the image CI publishes to GitHub Container Registry on every push to main.
-# Setup: see DEPLOY.md -> "API on Render".
+# Setup: see the "Deployment" section of README.md.
 services:
   - type: web
     name: siteguard-api

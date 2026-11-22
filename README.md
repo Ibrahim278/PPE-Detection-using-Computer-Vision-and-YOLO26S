@@ -42,7 +42,7 @@ is in `Project Report.docx` and `Project Presnetation.pptx`, and the original ou
 | 1. Model and tracking | 2-class model (v3), retrained on the same split; people come from a pretrained COCO detector; ByteTrack tracking, temporal smoothing and one event per violation; tuned per-class thresholds; ONNX export | [`ml/`](ml/README.md) |
 | 2. Backend API | FastAPI service: image detection, video jobs from uploads or links, live WebSocket stream, events stored in SQLite | [`api/`](api/README.md) |
 | 3. Web app | React + Tailwind dashboard: landing page, Live Monitor, Analyze, Violations, Model, with charts | [`web/`](web/README.md) |
-| 4. Shipping | Docker images and Compose stack, GitHub Actions CI, hosting on Vercel (frontend) and Render (API) | [`DEPLOY.md`](DEPLOY.md) |
+| 4. Shipping | Docker images and Compose stack, GitHub Actions CI, hosting on Vercel (frontend) and Render (API) | [Deployment](#deployment) |
 
 ## Features
 
@@ -154,7 +154,6 @@ Git LFS), and the metrics and demo outputs are in `Evaluation and Testing/v3/`.
 ├── web/                         # React + Tailwind frontend + Dockerfile / nginx (Phase 3)
 ├── docker-compose.yml           # full stack locally
 ├── render.yaml                  # Render blueprint for the API
-├── DEPLOY.md                    # detailed hosting guide
 ├── .github/workflows/ci.yml     # tests, builds, image publishing
 ├── PPE_Detection_Project_Code.ipynb   # original course notebook (v2)
 ├── Config Files/                # v2 training / validation configs
@@ -203,21 +202,49 @@ Docker images and smoke-tests the stack on every push.
 
 ## Deployment
 
-The live demo runs as two services. Step-by-step instructions are in [`DEPLOY.md`](DEPLOY.md).
+The live demo runs as two services: the **frontend on Vercel** and the **API on Render**. The browser calls the
+API directly, over HTTPS for requests and media and WSS for Live Monitor. Vercel can't host the API: PyTorch exceeds
+its function size limit, and the API needs background jobs, a persistent disk and WebSockets.
 
-**Frontend on Vercel**
-- Import the repository and set **Root Directory** to `web`. `web/vercel.json` sets the build, SPA routing and headers.
-- Set `VITE_API_URL` to the API's URL, then redeploy. The value is built into the site.
-- Leave Git LFS off in Vercel; the frontend doesn't need the model files.
+**1. Backend on Render**
 
-**Backend on Render**
-- CI builds the API image with the model weights and publishes it to `ghcr.io/ibrahim278/siteguard-api` on every push to `main`.
-- *New → Blueprint* reads [`render.yaml`](render.yaml): Standard plan (1 CPU, 2 GB RAM), a 5 GB disk at `/data`, and a health check.
-- Set `PPE_CORS_ORIGINS` to the Vercel URL.
-- Optionally, add the service's Deploy Hook as the GitHub secret `RENDER_DEPLOY_HOOK_URL`, so each green CI run deploys automatically.
+CI builds the API image with the model weights on every push to `main`, smoke-tests it, and publishes it to
+`ghcr.io/ibrahim278/siteguard-api` (`:latest` and `:sha-<commit>`). Render runs that image, so it never needs Git LFS.
 
-**Any other Docker host** works as well: build `api/Dockerfile` from the repository root, mount `/data`, and
-serve the frontend from `web/Dockerfile` or any static host. Settings are listed in [`api/README.md`](api/README.md#configuration-environment-variables).
+1. In Render, choose *New → Blueprint* and pick this repository (branch `main`, path [`render.yaml`](render.yaml)). That sets up the Standard plan (1 CPU, 2 GB RAM), a 5 GB disk at `/data`, and a health check on `/api/health`.
+2. When asked, set `PPE_CORS_ORIGINS` to the frontend URL, e.g. `https://siteguardx.vercel.app` (no trailing slash). Optionally, set `PPE_CORS_ORIGIN_REGEX` to allow Vercel preview URLs.
+3. After the first deploy, check that `https://<service>.onrender.com/api/health` returns `{"status":"ok"}`.
+4. Optional, for automatic deploys: copy the service's *Deploy Hook* into the GitHub secret `RENDER_DEPLOY_HOOK_URL`. Each green CI run then deploys its exact image. Without it, use *Manual Deploy → Deploy latest reference*.
+
+Cost is about $25/month for the plan plus about $1.25/month for the disk; you can suspend the service between demos.
+The free and starter plans (512 MB RAM) are too small for the models.
+
+**2. Frontend on Vercel**
+
+1. *Add New → Project*, import this repository, and set **Root Directory** to `web`. [`web/vercel.json`](web/vercel.json) sets the build, SPA routing and headers.
+2. Add the environment variable `VITE_API_URL` = the Render URL (type *Config*, Production), then deploy. It's built into the site, so **redeploy** after changing it.
+3. Leave Git LFS off in Vercel; the frontend doesn't need the model files.
+4. Check: the Model page shows metrics when the API is reachable and CORS is correct.
+
+**Common problems**
+- *"Can't reach the API server"* or CORS errors: the Vercel URL isn't in `PPE_CORS_ORIGINS`, or `VITE_API_URL` is wrong (check for a trailing slash or `http://`), or the site wasn't redeployed after changing it.
+- *Live Monitor won't connect:* the API host must allow WebSockets on `/api/stream`.
+- *Jobs stop or disappear:* the service restarted or was suspended. Keep exactly one instance running.
+- *Build fails with "best.pt is a Git LFS pointer":* run `git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"` before building.
+
+**Other hosts.** Any Docker host with HTTPS works:
+- Build `api/Dockerfile` from the repository root.
+- Give it a persistent volume at `/data` and 2 GB or more of RAM.
+- Run **one** instance only: the job queue and stream limit live in memory, and SQLite is a single file.
+- Serve the frontend from `web/Dockerfile` (nginx, which also proxies the API) or from any static host.
+
+All settings are listed in [`api/README.md`](api/README.md#configuration-environment-variables).
+- **Webcam:** browsers only allow it over HTTPS (or `localhost`).
+- **Speed:** on a CPU-only host, live tracking runs at only a few frames per second. Use a GPU host for real-time monitoring of several cameras.
+
+**Security:** there is no login yet. Anyone with the URL can upload videos and see worker snapshots. Keep a
+deployment private, or add authentication, before sharing it widely. Keep `PPE_ALLOW_PRIVATE_URLS=false` (the
+default), and check privacy rules before recording real people.
 
 ## Training and evaluation
 
