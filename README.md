@@ -127,6 +127,18 @@ cd ml && pip install -e . && python -m ppe.monitor --source your_video.mp4 --out
 
 ---
 
+## Backend API (Phase 2)
+
+[`api/`](api/README.md) is a FastAPI service around the v3 model: single-image detection, video jobs from
+uploads or URLs (direct links, YouTube/Vimeo sections), and live webcam monitoring over WebSocket. Violation
+events with snapshots are stored in SQLite.
+
+```bash
+pip install -e ml -e "api[platforms]" && cd api && uvicorn app.main:app --port 8000   # docs at /docs
+```
+
+---
+
 ## Project Structure
 
 ```
