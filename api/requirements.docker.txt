@@ -1,0 +1,18 @@
+# Exact runtime versions the test suite passed with (torch/torchvision come from the CPU index in the Dockerfile).
+ultralytics==8.4.46
+opencv-python==4.13.0.92
+numpy==2.5.5
+lxml==6.1.3
+pyyaml==6.0.4
+tqdm==4.70.1
+lap==0.5.14
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn[standard]==0.54.0
+websockets==17.4
+python-multipart==0.0.34
+sqlmodel==0.0.50
+sqlalchemy==2.1.9
+pydantic==2.14.4
+httpx==0.28.1
+yt-dlp==2026.10.26

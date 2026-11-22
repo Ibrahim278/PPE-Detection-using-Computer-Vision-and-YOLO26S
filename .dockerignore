@@ -1,0 +1,12 @@
+# Build context for api/Dockerfile (repo root): only what the image COPYs.
+**
+!api/Dockerfile
+!api/requirements.docker.txt
+!api/pyproject.toml
+!api/app/**
+!ml/pyproject.toml
+!ml/ppe/**
+!ml/configs/**
+!Training and Validation/ppe_yolo26s_v3/weights/best.pt
+!Evaluation and Testing/v3/metrics/**
+**/__pycache__

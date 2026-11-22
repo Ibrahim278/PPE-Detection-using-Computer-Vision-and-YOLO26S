@@ -1,0 +1,32 @@
+# Full stack: http://localhost:8080
+#   docker compose up --build
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: siteguard-api
+    environment:
+      PPE_DEVICE: cpu
+      PPE_PERSON_MODEL: yolo26n.pt     # lighter person model for CPU; "none" disables it
+      PPE_MAX_STREAMS: "2"
+      PPE_ENABLE_PLATFORM_URLS: "true"
+    volumes:
+      - ppe-data:/data          # SQLite DB, annotated videos, snapshots
+    restart: unless-stopped
+    # not published: reached through the web container's nginx
+
+  web:
+    build: web
+    image: siteguard-web
+    environment:
+      API_UPSTREAM: api:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ppe-data:
