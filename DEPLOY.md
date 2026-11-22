@@ -70,9 +70,10 @@ starter plans have 512 MB of RAM, less than the API uses at idle. Billing is per
 **One-time setup**
 
 1. **Publish the first image:** push to `main` (or re-run the CI workflow) and wait for the *Docker images* job to pass.
-2. **Let Render pull it:** on GitHub, go to your profile → *Packages* → `siteguard-api` → *Package settings* →
-   *Change visibility* → **Public**. (To keep it private instead, create a GitHub token with `read:packages`, add it in
-   Render under *Workspace Settings → Container Registry Credentials* as `ghcr`, and uncomment `creds` in `render.yaml`.)
+2. **Check Render can pull it:** for this public repository the package is public, and anonymous pulls of
+   `ghcr.io/ibrahim278/siteguard-api:latest` work (checked 2026-11-22). If you make the repo or package private,
+   create a GitHub token with `read:packages`, add it in Render under *Workspace Settings → Container Registry
+   Credentials* as `ghcr`, and uncomment `creds` in `render.yaml`.
 3. **Create the service:** in Render, *New → Blueprint*, pick this repository; it reads `render.yaml`.
    When asked, enter:
    - `PPE_CORS_ORIGINS`: your Vercel URL, e.g. `https://siteguard.vercel.app`
