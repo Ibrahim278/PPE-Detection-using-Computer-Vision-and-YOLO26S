@@ -153,6 +153,18 @@ cd web && npm install && npm run dev           # terminal 2, then open http://lo
 
 ---
 
+## Run Everything with Docker (Phase 4)
+
+```bash
+git lfs pull --include="Training and Validation/ppe_yolo26s_v3/weights/best.pt"
+docker compose up --build        # then open http://localhost:8080
+```
+
+Server requirements, HTTPS, configuration and security notes are in [DEPLOY.md](DEPLOY.md).
+CI (`.github/workflows/ci.yml`) runs the tests, builds the web app and Docker images, and smoke-tests the stack on every push.
+
+---
+
 ## Project Structure
 
 ```
