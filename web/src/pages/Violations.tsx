@@ -56,7 +56,7 @@ export default function Violations() {
 
       {events.data && events.data.length > 0 && (
         <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
-          <div className="h-fit space-y-6">
+          <div className="h-fit min-w-0 space-y-6">
             <div className="card p-4">
               <h2 className="mb-1 text-sm font-semibold">Incidents over time</h2>
               <p className="mb-3 text-xs text-muted">Grouped by {buckets.unit}, based on when the incident was recorded.</p>
